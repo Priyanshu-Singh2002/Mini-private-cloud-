@@ -1,10 +1,24 @@
+# ==============================
+# Maven / Java
+# ==============================
 HELP.md
 target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 
-### STS ###
+*.class
+*.jar
+*.war
+*.ear
+
+# Java crash and replay logs
+hs_err_pid*.log
+replay_pid*.log
+
+# ==============================
+# Spring Tool Suite (STS)
+# ==============================
 .apt_generated
 .classpath
 .factorypath
@@ -13,21 +27,65 @@ target/
 .springBeans
 .sts4-cache
 
-### IntelliJ IDEA ###
-.idea
+# ==============================
+# IntelliJ IDEA
+# ==============================
+.idea/
 *.iws
 *.iml
 *.ipr
 
-### NetBeans ###
+# ==============================
+# NetBeans
+# ==============================
 /nbproject/private/
 /nbbuild/
 /dist/
 /nbdist/
 /.nb-gradle/
+
+# ==============================
+# Build directories
+# ==============================
 build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
-### VS Code ###
+# ==============================
+# VS Code
+# ==============================
 .vscode/
+
+# ==============================
+# Environment variables and secrets
+# ==============================
+.env
+.env.*
+!.env.example
+.env.local
+.env.*.local
+
+application-local.properties
+application-local.yml
+application-local.yaml
+
+*.pem
+*.key
+
+# ==============================
+# Frontend: Node.js / Vite
+# ==============================
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# ==============================
+# Logs
+# ==============================
+*.log
+
+# ==============================
+# OS-generated files
+# ==============================
+.DS_Store
+Thumbs.db
