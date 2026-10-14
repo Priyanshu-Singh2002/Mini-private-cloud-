@@ -1,7 +1,9 @@
+
 import { useMemo, useState } from 'react'
 import { AuthContext } from './auth-context'
 
 const STORAGE_KEY = 'minicloud.user'
+const TOKEN_KEY = 'minicloud.token'
 
 function normalizeUser(candidate) {
   if (!candidate || typeof candidate !== 'object') {
@@ -9,6 +11,7 @@ function normalizeUser(candidate) {
   }
 
   const { id, username, email, role } = candidate
+
   if (id == null || !username || !email || !role) {
     return null
   }
@@ -19,10 +22,7 @@ function normalizeUser(candidate) {
 function readStoredUser() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) {
-      return null
-    }
-    return normalizeUser(JSON.parse(raw))
+    return raw ? normalizeUser(JSON.parse(raw)) : null
   } catch {
     return null
   }
@@ -34,30 +34,47 @@ export function AuthProvider({ children }) {
   const value = useMemo(() => {
     function persistUser(payload) {
       const nextUser = normalizeUser(payload)
+
       if (!nextUser) {
-        throw new Error('The server response did not include a complete user profile.')
+        throw new Error(
+          'The server response did not include a complete user profile.',
+        )
       }
 
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(nextUser))
       } catch {
-        // Browser storage is convenience-only, not a session. Continue in this tab.
+        // Keep the profile in React state if browser storage is unavailable.
       }
 
       setUser(nextUser)
     }
 
+    function persistToken(token) {
+      if (typeof token !== 'string' || !token.trim()) {
+        throw new Error('The server did not return a valid login token.')
+      }
+
+      localStorage.setItem(TOKEN_KEY, token)
+    }
+
     function logout() {
       try {
         localStorage.removeItem(STORAGE_KEY)
+        localStorage.removeItem(TOKEN_KEY)
       } catch {
-        // Ignore storage failures on logout.
+        // Ignore browser storage errors during logout.
       }
+
       setUser(null)
     }
 
-    return { user, persistUser, logout }
+    return { user, persistUser, persistToken, logout }
   }, [user])
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  )
 }

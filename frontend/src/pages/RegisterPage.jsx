@@ -3,14 +3,12 @@ import { Link, useNavigate } from 'react-router-dom'
 import { AlertCircle, Eye, EyeOff, Loader2, Lock, Mail, User } from 'lucide-react'
 import { register } from '../api/auth'
 import { getApiErrorMessage } from '../api/errors'
-import { useAuth } from '../hooks/useAuth'
 
 const MIN_PASSWORD = 8
 const MAX_PASSWORD = 72
 
 export default function RegisterPage() {
   const navigate = useNavigate()
-  const { persistUser } = useAuth()
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -45,13 +43,16 @@ export default function RegisterPage() {
 
     setSubmitting(true)
     try {
-      const { data } = await register({
+      await register({
         username: username.trim(),
         email: email.trim(),
         password,
       })
-      persistUser(data)
-      navigate('/dashboard', { replace: true })
+
+      navigate('/login', {
+        replace: true,
+        state: { registered: true },
+      })
     } catch (error) {
       setFormError(getApiErrorMessage(error))
     } finally {

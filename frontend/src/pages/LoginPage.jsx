@@ -7,7 +7,7 @@ import { useAuth } from '../hooks/useAuth'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const { persistUser } = useAuth()
+  const { persistUser, persistToken } = useAuth()
   const [usernameOrEmail, setUsernameOrEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -40,6 +40,7 @@ export default function LoginPage() {
         usernameOrEmail: usernameOrEmail.trim(),
         password,
       })
+      persistToken(data.token)
       persistUser(data)
       navigate('/dashboard', { replace: true })
     } catch (error) {

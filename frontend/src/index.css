@@ -507,3 +507,147 @@ form {
     padding: 16px;
   }
 }
+
+
+
+.file-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.file-section-heading h2 {
+  margin-bottom: 8px;
+}
+
+.file-section-heading p {
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.file-actions,
+.file-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.upload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.file-state,
+.file-empty {
+  padding: 36px 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.file-empty svg {
+  margin: 0 auto 12px;
+}
+
+.file-empty h3 {
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.file-empty p {
+  line-height: 1.5;
+}
+
+.file-list {
+  display: grid;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+
+.file-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #edf3ff;
+  color: var(--accent);
+}
+
+.file-details {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.file-details strong {
+  overflow-wrap: anywhere;
+}
+
+.file-details small {
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.file-row-actions .icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+  cursor: pointer;
+}
+
+.file-row-actions .icon-button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.file-row-actions .danger-button {
+  color: #dc2626;
+}
+
+.file-notice {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .file-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .file-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .file-row {
+    gap: 10px;
+  }
+
+  .file-row-actions {
+    gap: 6px;
+  }
+}
