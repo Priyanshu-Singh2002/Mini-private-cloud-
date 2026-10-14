@@ -68,6 +68,7 @@ build/
 application-local.properties
 application-local.yml
 application-local.yaml
+*.properties.bak
 
 *.pem
 *.key
