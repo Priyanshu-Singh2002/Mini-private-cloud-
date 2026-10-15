@@ -92,7 +92,7 @@ export default function LoginPage() {
           <label htmlFor="password">Password</label>
           <div className="input-wrap">
             <Lock size={16} aria-hidden="true" />
-            <input
+            <input 
               id="password"
               name="password"
               type={showPassword ? 'text' : 'password'}
