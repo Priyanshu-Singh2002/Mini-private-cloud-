@@ -97,6 +97,12 @@ public class AuthService {
                                                 HttpStatus.UNAUTHORIZED,
                                                 "Invalid username/email or password"));
 
+                if (!"ACTIVE".equals(user.getStatus())) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
+                                        "Your account is suspended.");
+                }
+
                 if (!passwordEncoder.matches(
                                 request.password(),
                                 user.getPasswordHash())) {

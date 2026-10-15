@@ -1,3 +1,4 @@
+
 package com.minicloud.entity;
 
 import jakarta.persistence.*;
@@ -23,6 +24,9 @@ public class AppUser {
     @Column(nullable = false, length = 20)
     private String role = "USER";
 
+    @Column(nullable = false, length = 20)
+    private String status = "ACTIVE";
+
     private LocalDateTime createdAt;
 
     public AppUser() {
@@ -30,7 +34,15 @@ public class AppUser {
 
     @PrePersist
     public void prePersist() {
-        createdAt = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+        if (role == null || role.isBlank()) {
+            role = "USER";
+        }
+        if (status == null || status.isBlank()) {
+            status = "ACTIVE";
+        }
     }
 
     public Long getId() {
@@ -63,6 +75,19 @@ public class AppUser {
 
     public String getRole() {
         return role;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        if (!"ACTIVE".equals(status) && !"SUSPENDED".equals(status)) {
+            throw new IllegalArgumentException(
+                "Status must be ACTIVE or SUSPENDED."
+            );
+        }
+        this.status = status;
     }
 
     public LocalDateTime getCreatedAt() {
