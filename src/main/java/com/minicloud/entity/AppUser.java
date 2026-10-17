@@ -77,6 +77,10 @@ public class AppUser {
         return role;
     }
 
+    public void assignAdminRole() {
+        this.role = "ADMIN";
+    }
+
     public String getStatus() {
         return status;
     }
@@ -84,8 +88,7 @@ public class AppUser {
     public void setStatus(String status) {
         if (!"ACTIVE".equals(status) && !"SUSPENDED".equals(status)) {
             throw new IllegalArgumentException(
-                "Status must be ACTIVE or SUSPENDED."
-            );
+                    "Status must be ACTIVE or SUSPENDED.");
         }
         this.status = status;
     }

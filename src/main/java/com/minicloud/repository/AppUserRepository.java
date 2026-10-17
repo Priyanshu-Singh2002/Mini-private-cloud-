@@ -12,6 +12,8 @@ public interface AppUserRepository
 
     boolean existsByEmail(String email);
 
+    boolean existsByRole(String role);
+
     Optional<AppUser> findByUsernameOrEmail(
             String username,
             String email

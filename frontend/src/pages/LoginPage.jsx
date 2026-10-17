@@ -1,6 +1,6 @@
+import { AlertCircle, Eye, EyeOff, Loader2, Lock, User } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { AlertCircle, Eye, EyeOff, Loader2, Lock, User } from 'lucide-react'
 import { login } from '../api/auth'
 import { getApiErrorMessage } from '../api/errors'
 import { useAuth } from '../hooks/useAuth'
@@ -40,9 +40,12 @@ export default function LoginPage() {
         usernameOrEmail: usernameOrEmail.trim(),
         password,
       })
+
       persistToken(data.token)
       persistUser(data)
-      navigate('/dashboard', { replace: true })
+      navigate(data.role === 'ADMIN' ? '/admin' : '/dashboard', {
+        replace: true,
+      })
     } catch (error) {
       setFormError(getApiErrorMessage(error))
     } finally {
@@ -92,7 +95,7 @@ export default function LoginPage() {
           <label htmlFor="password">Password</label>
           <div className="input-wrap">
             <Lock size={16} aria-hidden="true" />
-            <input 
+            <input
               id="password"
               name="password"
               type={showPassword ? 'text' : 'password'}
