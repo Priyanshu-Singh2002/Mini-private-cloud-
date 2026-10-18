@@ -10,6 +10,10 @@ import {
   UserCheck,
   LogOut,
   Info,
+  HardDrive,
+  Database,
+  Files,
+  Users,
 } from 'lucide-react'
 
 import client from '../api/client'
@@ -25,6 +29,22 @@ function formatDate(value) {
     : date.toLocaleString()
 }
 
+
+function formatBytes(bytes) {
+  const value = Number(bytes)
+
+  if (!Number.isFinite(value) || value <= 0) return '0 B'
+
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const index = Math.min(
+    Math.floor(Math.log(value) / Math.log(1024)),
+    units.length - 1,
+  )
+
+  return `${(value / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 2)} ${units[index]}`
+}
+
+
 export default function AdminDashboardPage() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -34,6 +54,12 @@ export default function AdminDashboardPage() {
   const [busyUserId, setBusyUserId] = useState(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+
+  const [storageStats, setStorageStats] = useState(null)
+  const [userStorage, setUserStorage] = useState([])
+  const [storageLoading, setStorageLoading] = useState(true)
+  const [storageError, setStorageError] = useState('')
+
 
   const loadUsers = useCallback(async () => {
     setLoading(true)
@@ -48,6 +74,34 @@ export default function AdminDashboardPage() {
       setLoading(false)
     }
   }, [])
+
+
+  const loadStorageStats = useCallback(async () => {
+    setStorageLoading(true)
+    setStorageError('')
+
+    try {
+      const [summaryResponse, usersResponse] = await Promise.all([
+        client.get('/admin/storage/summary'),
+        client.get('/admin/storage/users'),
+      ])
+
+      setStorageStats(summaryResponse.data)
+      setUserStorage(
+        Array.isArray(usersResponse.data) ? usersResponse.data : [],
+      )
+    } catch (err) {
+      setStorageError(getApiErrorMessage(err))
+    } finally {
+      setStorageLoading(false)
+    }
+  }, [])
+
+
+  useEffect(() => {
+    loadStorageStats()
+  }, [loadStorageStats])
+
 
   useEffect(() => {
     loadUsers()
@@ -191,6 +245,128 @@ export default function AdminDashboardPage() {
               <p className="stat-value">{suspendedCount}</p>
             </article>
           </section>
+
+
+
+          <section className="welcome-card">
+            <div className="file-section-heading">
+              <div>
+                <h2>Cloud storage</h2>
+                <p>Monitor storage usage across your private cloud.</p>
+              </div>
+
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => {
+                  loadUsers()
+                  loadStorageStats()
+                }}
+                disabled={storageLoading}
+              >
+                <RefreshCw size={16} />
+                Refresh storage
+              </button>
+            </div>
+
+            {storageError && (
+              <div className="alert alert-error" role="alert">
+                <Info size={18} />
+                <span>{storageError}</span>
+              </div>
+            )}
+
+            {storageLoading ? (
+              <p className="file-state">Loading storage statistics…</p>
+            ) : storageStats ? (
+              <>
+                <section className="stat-grid" aria-label="Cloud storage statistics">
+                  <article className="stat-card">
+                    <Users size={18} />
+                    <p className="stat-label">Total users</p>
+                    <p className="stat-value">{storageStats.totalUsers}</p>
+                  </article>
+
+                  <article className="stat-card">
+                    <Files size={18} />
+                    <p className="stat-label">Total files</p>
+                    <p className="stat-value">{storageStats.totalFiles}</p>
+                  </article>
+
+                  <article className="stat-card">
+                    <Database size={18} />
+                    <p className="stat-label">Storage used</p>
+                    <p className="stat-value">
+                      {formatBytes(storageStats.totalStorageBytes)}
+                    </p>
+                  </article>
+
+                  <article className="stat-card">
+                    <HardDrive size={18} />
+                    <p className="stat-label">Users with files</p>
+                    <p className="stat-value">{storageStats.usersWithFiles}</p>
+                  </article>
+                </section>
+
+                <div className="file-section-heading">
+                  <div>
+                    <h2>User storage usage</h2>
+                    <p>Storage consumption for each registered account.</p>
+                  </div>
+                </div>
+
+                {userStorage.length === 0 ? (
+                  <p className="file-state">No registered users found.</p>
+                ) : (
+                  <div className="admin-table-wrapper">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>User</th>
+                          <th>Role</th>
+                          <th>Status</th>
+                          <th>Files</th>
+                          <th>Storage used</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {userStorage.map((item) => (
+                          <tr key={item.userId}>
+                            <td>
+                              <strong>{item.username}</strong>
+                              <small className="admin-user-email">
+                                {item.email}
+                              </small>
+                            </td>
+                            <td>{item.role}</td>
+                            <td>
+                              <span
+                                className={
+                                  item.status === 'ACTIVE'
+                                    ? 'admin-status is-active'
+                                    : 'admin-status is-suspended'
+                                }
+                              >
+                                {item.status}
+                              </span>
+                            </td>
+                            <td>{item.fileCount}</td>
+                            <td>{formatBytes(item.usedBytes)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="file-state">
+                Storage statistics could not be loaded.
+              </p>
+            )}
+          </section>
+
 
           <section className="welcome-card">
             <div className="file-section-heading">
