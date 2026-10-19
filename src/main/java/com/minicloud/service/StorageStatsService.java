@@ -71,6 +71,11 @@ public class StorageStatsService {
                     ? 0L
                     : ((Number) row[2]).longValue();
 
+            long quotaBytes = user.getStorageQuotaBytes() == null
+                    ? com.minicloud.storage.StorageQuotaPolicy.DEFAULT_QUOTA_BYTES
+                    : user.getStorageQuotaBytes();
+            long remainingBytes = Math.max(0L, quotaBytes - usedBytes);
+
             result.add(new UserStorageStats(
                     user.getId(),
                     user.getUsername(),
@@ -78,7 +83,10 @@ public class StorageStatsService {
                     user.getRole(),
                     user.getStatus(),
                     fileCount,
-                    usedBytes
+                    usedBytes,
+                    quotaBytes,
+                    remainingBytes,
+                    StorageQuotaService.usagePercent(usedBytes, quotaBytes)
             ));
         }
 

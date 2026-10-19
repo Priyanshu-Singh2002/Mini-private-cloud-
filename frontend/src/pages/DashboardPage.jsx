@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   Cloud,
+  Cpu,
   Download,
   File,
   FileText,
@@ -16,7 +17,11 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { deleteFile, downloadFile, getFiles, uploadFile } from '../api/files'
+import { getMyStorageUsage } from '../api/storage'
+import { cancelJob, getMyJobs, submitJob } from '../api/jobs'
 import { getApiErrorMessage } from '../api/errors'
+
+const BYTES_PER_MB = 1024 * 1024
 
 function formatBytes(bytes) {
   if (bytes == null || bytes === 0) return '0 B'
@@ -37,6 +42,11 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()
 }
 
+function jobStatusClass(status) {
+  const value = String(status || '').toLowerCase()
+  return `job-status is-${value}`
+}
+
 export default function DashboardPage() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -47,6 +57,26 @@ export default function DashboardPage() {
   const [busyFileId, setBusyFileId] = useState(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [usage, setUsage] = useState(null)
+  const [jobs, setJobs] = useState([])
+  const [jobsLoading, setJobsLoading] = useState(true)
+  const [jobType, setJobType] = useState('TEXT_STATS')
+  const [jobPriority, setJobPriority] = useState('MEDIUM')
+  const [jobFileId, setJobFileId] = useState('')
+  const [jobValues, setJobValues] = useState('1, 2, 3, 4, 5')
+  const [submittingJob, setSubmittingJob] = useState(false)
+  const [busyJobId, setBusyJobId] = useState(null)
+  const [jobError, setJobError] = useState('')
+  const [jobNotice, setJobNotice] = useState('')
+
+  const loadUsage = useCallback(async () => {
+    try {
+      const { data } = await getMyStorageUsage()
+      setUsage(data)
+    } catch {
+      setUsage(null)
+    }
+  }, [])
 
   const loadFiles = useCallback(async (showLoading = true) => {
     if (showLoading) {
@@ -58,11 +88,29 @@ export default function DashboardPage() {
     try {
       const { data } = await getFiles()
       setFiles(Array.isArray(data) ? data : [])
+      await loadUsage()
     } catch (err) {
       setError(getApiErrorMessage(err))
     } finally {
       if (showLoading) {
         setLoading(false)
+      }
+    }
+  }, [loadUsage])
+
+  const loadJobs = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setJobsLoading(true)
+    }
+
+    try {
+      const { data } = await getMyJobs()
+      setJobs(Array.isArray(data) ? data : [])
+    } catch (err) {
+      setJobError(getApiErrorMessage(err))
+    } finally {
+      if (showLoading) {
+        setJobsLoading(false)
       }
     }
   }, [])
@@ -77,6 +125,13 @@ export default function DashboardPage() {
         if (!cancelled) {
           setFiles(Array.isArray(data) ? data : [])
           setError('')
+          getMyStorageUsage()
+            .then(({ data: usageData }) => {
+              if (!cancelled) {
+                setUsage(usageData)
+              }
+            })
+            .catch(() => {})
         }
       } catch (err) {
         if (!cancelled) {
@@ -90,11 +145,12 @@ export default function DashboardPage() {
     }
 
     fetchInitialFiles()
+    loadJobs()
 
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [loadJobs])
 
   function handleLogout() {
     logout()
@@ -114,7 +170,7 @@ export default function DashboardPage() {
     try {
       await uploadFile(selectedFile)
       setNotice(`"${selectedFile.name}" uploaded successfully.`)
-      await loadFiles()
+      await loadFiles(false)
     } catch (err) {
       setError(getApiErrorMessage(err))
     } finally {
@@ -148,6 +204,66 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleSubmitJob(event) {
+    event.preventDefault()
+    setJobError('')
+    setJobNotice('')
+    setSubmittingJob(true)
+
+    try {
+      const payload = {
+        jobType,
+        priority: jobPriority,
+      }
+
+      if (jobType === 'BATCH_SUM') {
+        const values = jobValues
+          .split(/[\s,]+/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .map(Number)
+
+        if (values.length === 0 || values.some((value) => !Number.isFinite(value))) {
+          setJobError('Enter a bounded list of numbers, separated by commas.')
+          return
+        }
+
+        payload.values = values
+      } else {
+        if (!jobFileId) {
+          setJobError('Select one of your uploaded files as job input.')
+          return
+        }
+
+        payload.fileId = Number(jobFileId)
+      }
+
+      const { data } = await submitJob(payload)
+      setJobNotice(`Job ${data.id} queued as ${data.status}.`)
+      await loadJobs(false)
+    } catch (err) {
+      setJobError(getApiErrorMessage(err))
+    } finally {
+      setSubmittingJob(false)
+    }
+  }
+
+  async function handleCancelJob(job) {
+    setBusyJobId(job.id)
+    setJobError('')
+    setJobNotice('')
+
+    try {
+      await cancelJob(job.id)
+      setJobNotice(`Job ${job.id} was cancelled.`)
+      await loadJobs(false)
+    } catch (err) {
+      setJobError(getApiErrorMessage(err))
+    } finally {
+      setBusyJobId(null)
+    }
+  }
+
   async function handleDelete(file) {
     const filename = file.originalFilename || 'this file'
 
@@ -161,6 +277,7 @@ export default function DashboardPage() {
       await deleteFile(file.id)
       setFiles((current) => current.filter((item) => item.id !== file.id))
       setNotice(`"${filename}" was deleted.`)
+      await loadUsage()
     } catch (err) {
       setError(getApiErrorMessage(err))
     } finally {
@@ -169,7 +286,18 @@ export default function DashboardPage() {
   }
 
   const initials = (user?.username || '?').slice(0, 2).toUpperCase()
-  const totalBytes = files.reduce((sum, file) => sum + (file.fileSize || 0), 0)
+  const totalBytes = usage?.usedBytes
+    ?? files.reduce((sum, file) => sum + (file.fileSize || 0), 0)
+  const quotaBytes = usage?.storageQuotaBytes ?? 0
+  const remainingBytes = usage?.remainingBytes
+    ?? Math.max(0, quotaBytes - totalBytes)
+  const usagePercent = usage?.usagePercent
+    ?? (quotaBytes > 0 ? Math.min(100, (totalBytes * 100) / quotaBytes) : 0)
+  const usageBarClass = usagePercent >= 100
+    ? 'usage-bar-fill is-full'
+    : usagePercent >= 80
+      ? 'usage-bar-fill is-high'
+      : 'usage-bar-fill'
 
   return (
     <div className="dashboard-shell">
@@ -229,7 +357,7 @@ export default function DashboardPage() {
 
             <article className="stat-card">
               <Cloud size={18} />
-              <p className="stat-label">Total file size</p>
+              <p className="stat-label">Storage used</p>
               <p className="stat-value">{formatBytes(totalBytes)}</p>
             </article>
 
@@ -239,6 +367,34 @@ export default function DashboardPage() {
               <p className="stat-value">{user?.role}</p>
             </article>
           </section>
+
+          {quotaBytes > 0 && (
+            <section className="welcome-card">
+              <h2>Storage quota</h2>
+              <p>
+                Used {formatBytes(totalBytes)} of {formatBytes(quotaBytes)}.
+                Remaining {formatBytes(remainingBytes)}.
+              </p>
+              <div
+                className="usage-bar"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(usagePercent)}
+              >
+                <div
+                  className={usageBarClass}
+                  style={{ width: `${Math.min(100, usagePercent)}%` }}
+                />
+              </div>
+              <div className="usage-meta">
+                <span>{usagePercent.toFixed(1)}% used</span>
+                <span>
+                  Quota {(quotaBytes / BYTES_PER_MB).toFixed(0)} MB
+                </span>
+              </div>
+            </section>
+          )}
 
           <section className="welcome-card">
             <div className="file-section-heading">
@@ -332,6 +488,167 @@ export default function DashboardPage() {
                     </div>
                   </article>
                 ))}
+              </div>
+            )}
+          </section>
+
+          <section className="welcome-card">
+            <div className="file-section-heading">
+              <div>
+                <h2>Job processing</h2>
+                <p>
+                  Submit a predefined task. Jobs are queued by priority and
+                  run in the background.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => loadJobs()}
+                disabled={jobsLoading || submittingJob}
+              >
+                <RefreshCw size={16} />
+                Refresh jobs
+              </button>
+            </div>
+
+            {jobError && (
+              <div className="alert alert-error" role="alert">
+                <Info size={18} />
+                <span>{jobError}</span>
+              </div>
+            )}
+
+            {jobNotice && (
+              <div className="file-notice" role="status">
+                {jobNotice}
+              </div>
+            )}
+
+            <form className="job-form" onSubmit={handleSubmitJob}>
+              <div className="job-form-grid">
+                <div className="field">
+                  <label htmlFor="jobType">Job type</label>
+                  <select
+                    id="jobType"
+                    value={jobType}
+                    onChange={(event) => setJobType(event.target.value)}
+                  >
+                    <option value="TEXT_STATS">Text word and line count</option>
+                    <option value="CSV_STATS">CSV row statistics</option>
+                    <option value="BATCH_SUM">Bounded batch sum</option>
+                  </select>
+                </div>
+
+                <div className="field">
+                  <label htmlFor="jobPriority">Priority</label>
+                  <select
+                    id="jobPriority"
+                    value={jobPriority}
+                    onChange={(event) => setJobPriority(event.target.value)}
+                  >
+                    <option value="HIGH">HIGH</option>
+                    <option value="MEDIUM">MEDIUM</option>
+                    <option value="LOW">LOW</option>
+                  </select>
+                </div>
+              </div>
+
+              {jobType === 'BATCH_SUM' ? (
+                <div className="field">
+                  <label htmlFor="jobValues">Numbers to sum</label>
+                  <textarea
+                    id="jobValues"
+                    value={jobValues}
+                    onChange={(event) => setJobValues(event.target.value)}
+                    placeholder="1, 2, 3, 4"
+                  />
+                  <p className="field-hint">
+                    Comma-separated numbers. The backend limits list size.
+                  </p>
+                </div>
+              ) : (
+                <div className="field">
+                  <label htmlFor="jobFileId">Input file</label>
+                  <select
+                    id="jobFileId"
+                    value={jobFileId}
+                    onChange={(event) => setJobFileId(event.target.value)}
+                  >
+                    <option value="">Select a file you uploaded</option>
+                    {files.map((file) => (
+                      <option key={file.id} value={file.id}>
+                        {file.originalFilename}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={submittingJob}
+              >
+                <Cpu size={16} />
+                {submittingJob ? 'Submitting…' : 'Submit job'}
+              </button>
+            </form>
+
+            {jobsLoading ? (
+              <p className="file-state">Loading jobs…</p>
+            ) : jobs.length === 0 ? (
+              <p className="file-state">No jobs yet.</p>
+            ) : (
+              <div className="admin-table-wrapper">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Type</th>
+                      <th>Priority</th>
+                      <th>Status</th>
+                      <th>Submitted</th>
+                      <th>Result</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {jobs.map((job) => (
+                      <tr key={job.id}>
+                        <td>{job.id}</td>
+                        <td>{job.jobType}</td>
+                        <td>{job.priority}</td>
+                        <td>
+                          <span className={jobStatusClass(job.status)}>
+                            {job.status}
+                          </span>
+                        </td>
+                        <td>{formatDate(job.submittedAt)}</td>
+                        <td>
+                          {job.status === 'FAILED' && job.errorMessage}
+                          {job.status === 'COMPLETED' && (
+                            <pre className="job-result">{job.result}</pre>
+                          )}
+                          {job.status !== 'FAILED' && job.status !== 'COMPLETED' && '—'}
+                        </td>
+                        <td>
+                          {job.status === 'QUEUED' && (
+                            <button
+                              type="button"
+                              className="ghost-button"
+                              disabled={busyJobId === job.id}
+                              onClick={() => handleCancelJob(job)}
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>

@@ -28,6 +28,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import org.mockito.ArgumentCaptor;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
@@ -76,7 +77,14 @@ class AuthServiceTest {
                 assertEquals("test@example.com", response.email());
 
                 verify(passwordEncoder).encode("password123");
-                verify(userRepository).save(any(AppUser.class));
+
+                ArgumentCaptor<AppUser> captor =
+                                ArgumentCaptor.forClass(AppUser.class);
+                verify(userRepository).save(captor.capture());
+                captor.getValue().prePersist();
+                assertEquals(
+                                com.minicloud.storage.StorageQuotaPolicy.DEFAULT_QUOTA_BYTES,
+                                captor.getValue().getStorageQuotaBytes());
         }
 
         @Test

@@ -2,7 +2,10 @@
 package com.minicloud.controller;
 
 import com.minicloud.dto.AdminUserResponse;
+import com.minicloud.dto.UpdateStorageQuotaRequest;
+import com.minicloud.dto.UserStorageStats;
 import com.minicloud.service.AdminUserService;
+import com.minicloud.service.StorageQuotaService;
 
 import java.util.List;
 
@@ -16,9 +19,13 @@ import org.springframework.web.bind.annotation.*;
 public class AdminUserController {
 
     private final AdminUserService adminUserService;
+    private final StorageQuotaService storageQuotaService;
 
-    public AdminUserController(AdminUserService adminUserService) {
+    public AdminUserController(
+            AdminUserService adminUserService,
+            StorageQuotaService storageQuotaService) {
         this.adminUserService = adminUserService;
+        this.storageQuotaService = storageQuotaService;
     }
 
     @GetMapping
@@ -43,6 +50,15 @@ public class AdminUserController {
 
         return ResponseEntity.ok(
                 adminUserService.reactivateUser(userId));
+    }
+
+    @PatchMapping("/{userId}/quota")
+    public ResponseEntity<UserStorageStats> updateQuota(
+            @PathVariable Long userId,
+            @RequestBody UpdateStorageQuotaRequest request) {
+
+        return ResponseEntity.ok(
+                storageQuotaService.updateQuota(userId, request));
     }
 
     private Long getUserId(Jwt jwt) {

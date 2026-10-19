@@ -3,30 +3,33 @@ package com.minicloud.service;
 import com.minicloud.entity.StoredFile;
 import com.minicloud.repository.StoredFileRepository;
 
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 public class StoredFileService {
 
     private final StoredFileRepository storedFileRepository;
     private final FileStorageService fileStorageService;
+    private final StorageQuotaService storageQuotaService;
+    private final StoredFileService self;
 
     public StoredFileService(
             StoredFileRepository storedFileRepository,
-            FileStorageService fileStorageService) {
+            FileStorageService fileStorageService,
+            StorageQuotaService storageQuotaService,
+            @Lazy StoredFileService self) {
         this.storedFileRepository = storedFileRepository;
         this.fileStorageService = fileStorageService;
+        this.storageQuotaService = storageQuotaService;
+        this.self = self == null ? this : self;
     }
 
-    @Transactional
     public StoredFile uploadFile(Long userId, MultipartFile file) {
         if (userId == null) {
             throw new IllegalArgumentException(
@@ -50,6 +53,24 @@ public class StoredFileService {
         if (contentType == null || contentType.isBlank()) {
             contentType = "application/octet-stream";
         }
+
+        synchronized (storageQuotaService.lockForUser(userId)) {
+            return self.storeWithinQuota(
+                    userId,
+                    file,
+                    originalFilename,
+                    contentType);
+        }
+    }
+
+    @Transactional
+    public StoredFile storeWithinQuota(
+            Long userId,
+            MultipartFile file,
+            String originalFilename,
+            String contentType) {
+
+        storageQuotaService.enforceQuotaForUpload(userId, file.getSize());
 
         String storedFilename = fileStorageService.storeFile(file);
 

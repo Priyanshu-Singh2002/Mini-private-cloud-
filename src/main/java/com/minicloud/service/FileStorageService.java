@@ -2,6 +2,7 @@ package com.minicloud.service;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -106,6 +107,24 @@ public class FileStorageService {
         }
 
         return filePath;
+    }
+
+    public String readBoundedText(String storedFilename, long maxBytes) {
+        Path filePath = loadFile(storedFilename);
+
+        try {
+            long size = Files.size(filePath);
+            if (size > maxBytes) {
+                throw new IllegalArgumentException(
+                        "Input file exceeds the job processing size limit.");
+            }
+
+            byte[] bytes = Files.readAllBytes(filePath);
+            return new String(bytes, StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            throw new IllegalStateException(
+                    "Could not read the stored file.", ex);
+        }
     }
 
     public void deleteFile(String storedFilename) {

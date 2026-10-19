@@ -17,8 +17,12 @@ import {
 } from 'lucide-react'
 
 import client from '../api/client'
+import { updateUserQuota } from '../api/storage'
+import { getAdminJobs } from '../api/jobs'
 import { getApiErrorMessage } from '../api/errors'
 import { useAuth } from '../hooks/useAuth'
+
+const BYTES_PER_MB = 1024 * 1024
 
 function formatDate(value) {
   if (!value) return '—'
@@ -44,6 +48,17 @@ function formatBytes(bytes) {
   return `${(value / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 2)} ${units[index]}`
 }
 
+function bytesToMbInput(bytes) {
+  const value = Number(bytes)
+  if (!Number.isFinite(value) || value <= 0) return '100'
+  return String(Math.round(value / BYTES_PER_MB))
+}
+
+function jobStatusClass(status) {
+  const value = String(status || '').toLowerCase()
+  return `job-status is-${value}`
+}
+
 
 export default function AdminDashboardPage() {
   const { user, logout } = useAuth()
@@ -59,6 +74,12 @@ export default function AdminDashboardPage() {
   const [userStorage, setUserStorage] = useState([])
   const [storageLoading, setStorageLoading] = useState(true)
   const [storageError, setStorageError] = useState('')
+  const [quotaDrafts, setQuotaDrafts] = useState({})
+  const [quotaBusyId, setQuotaBusyId] = useState(null)
+  const [quotaNotice, setQuotaNotice] = useState('')
+  const [jobs, setJobs] = useState([])
+  const [jobsLoading, setJobsLoading] = useState(true)
+  const [jobsError, setJobsError] = useState('')
 
 
   const loadUsers = useCallback(async () => {
@@ -87,13 +108,35 @@ export default function AdminDashboardPage() {
       ])
 
       setStorageStats(summaryResponse.data)
-      setUserStorage(
-        Array.isArray(usersResponse.data) ? usersResponse.data : [],
-      )
+      const rows = Array.isArray(usersResponse.data) ? usersResponse.data : []
+      setUserStorage(rows)
+      setQuotaDrafts((current) => {
+        const next = { ...current }
+        rows.forEach((item) => {
+          if (next[item.userId] == null) {
+            next[item.userId] = bytesToMbInput(item.storageQuotaBytes)
+          }
+        })
+        return next
+      })
     } catch (err) {
       setStorageError(getApiErrorMessage(err))
     } finally {
       setStorageLoading(false)
+    }
+  }, [])
+
+  const loadJobs = useCallback(async () => {
+    setJobsLoading(true)
+    setJobsError('')
+
+    try {
+      const { data } = await getAdminJobs()
+      setJobs(Array.isArray(data) ? data : [])
+    } catch (err) {
+      setJobsError(getApiErrorMessage(err))
+    } finally {
+      setJobsLoading(false)
     }
   }, [])
 
@@ -106,6 +149,10 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     loadUsers()
   }, [loadUsers])
+
+  useEffect(() => {
+    loadJobs()
+  }, [loadJobs])
 
   async function changeStatus(targetUser, action) {
     const isSuspending = action === 'suspend'
@@ -142,6 +189,37 @@ export default function AdminDashboardPage() {
       setError(getApiErrorMessage(err))
     } finally {
       setBusyUserId(null)
+    }
+  }
+
+  async function saveQuota(item) {
+    const mbValue = Number(quotaDrafts[item.userId])
+
+    if (!Number.isFinite(mbValue) || mbValue <= 0) {
+      setStorageError('Enter a positive quota in MB.')
+      return
+    }
+
+    const storageQuotaBytes = Math.round(mbValue * BYTES_PER_MB)
+
+    setQuotaBusyId(item.userId)
+    setStorageError('')
+    setQuotaNotice('')
+
+    try {
+      const { data } = await updateUserQuota(item.userId, storageQuotaBytes)
+      setUserStorage((current) =>
+        current.map((row) => (row.userId === data.userId ? data : row)),
+      )
+      setQuotaDrafts((current) => ({
+        ...current,
+        [item.userId]: bytesToMbInput(data.storageQuotaBytes),
+      }))
+      setQuotaNotice(`Updated ${item.username}'s quota to ${mbValue} MB.`)
+    } catch (err) {
+      setStorageError(getApiErrorMessage(err))
+    } finally {
+      setQuotaBusyId(null)
     }
   }
 
@@ -261,6 +339,7 @@ export default function AdminDashboardPage() {
                 onClick={() => {
                   loadUsers()
                   loadStorageStats()
+                  loadJobs()
                 }}
                 disabled={storageLoading}
               >
@@ -273,6 +352,12 @@ export default function AdminDashboardPage() {
               <div className="alert alert-error" role="alert">
                 <Info size={18} />
                 <span>{storageError}</span>
+              </div>
+            )}
+
+            {quotaNotice && (
+              <div className="file-notice" role="status">
+                {quotaNotice}
               </div>
             )}
 
@@ -311,7 +396,10 @@ export default function AdminDashboardPage() {
                 <div className="file-section-heading">
                   <div>
                     <h2>User storage usage</h2>
-                    <p>Storage consumption for each registered account.</p>
+                    <p>
+                      Storage consumption and quotas for each registered
+                      account. Quota input is in MB, where 1 MB = 1,048,576 bytes.
+                    </p>
                   </div>
                 </div>
 
@@ -326,12 +414,24 @@ export default function AdminDashboardPage() {
                           <th>Role</th>
                           <th>Status</th>
                           <th>Files</th>
-                          <th>Storage used</th>
+                          <th>Used</th>
+                          <th>Quota</th>
+                          <th>Remaining</th>
+                          <th>Usage</th>
+                          <th>Edit quota (MB)</th>
                         </tr>
                       </thead>
 
                       <tbody>
-                        {userStorage.map((item) => (
+                        {userStorage.map((item) => {
+                          const percent = Number(item.usagePercent) || 0
+                          const barClass = percent >= 100
+                            ? 'usage-bar-fill is-full'
+                            : percent >= 80
+                              ? 'usage-bar-fill is-high'
+                              : 'usage-bar-fill'
+
+                          return (
                           <tr key={item.userId}>
                             <td>
                               <strong>{item.username}</strong>
@@ -353,8 +453,56 @@ export default function AdminDashboardPage() {
                             </td>
                             <td>{item.fileCount}</td>
                             <td>{formatBytes(item.usedBytes)}</td>
+                            <td>{formatBytes(item.storageQuotaBytes)}</td>
+                            <td>{formatBytes(item.remainingBytes)}</td>
+                            <td>
+                              <div
+                                className="usage-bar"
+                                role="progressbar"
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-valuenow={Math.round(percent)}
+                              >
+                                <div
+                                  className={barClass}
+                                  style={{ width: `${Math.min(100, percent)}%` }}
+                                />
+                              </div>
+                              <div className="usage-meta">
+                                <span>{percent.toFixed(1)}%</span>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="quota-editor">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  aria-label={`Quota in MB for ${item.username}`}
+                                  value={quotaDrafts[item.userId] ?? ''}
+                                  onChange={(event) =>
+                                    setQuotaDrafts((current) => ({
+                                      ...current,
+                                      [item.userId]: event.target.value,
+                                    }))
+                                  }
+                                />
+                                <span className="quota-unit">MB</span>
+                                <button
+                                  type="button"
+                                  className="ghost-button"
+                                  disabled={quotaBusyId === item.userId}
+                                  onClick={() => saveQuota(item)}
+                                >
+                                  {quotaBusyId === item.userId
+                                    ? 'Saving…'
+                                    : 'Save'}
+                                </button>
+                              </div>
+                            </td>
                           </tr>
-                        ))}
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -484,6 +632,75 @@ export default function AdminDashboardPage() {
                         </tr>
                       )
                     })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section className="welcome-card">
+            <div className="file-section-heading">
+              <div>
+                <h2>Compute jobs</h2>
+                <p>
+                  Overview of queued and completed jobs across all users.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={loadJobs}
+                disabled={jobsLoading}
+              >
+                <RefreshCw size={16} />
+                Refresh jobs
+              </button>
+            </div>
+
+            {jobsError && (
+              <div className="alert alert-error" role="alert">
+                <Info size={18} />
+                <span>{jobsError}</span>
+              </div>
+            )}
+
+            {jobsLoading ? (
+              <p className="file-state">Loading jobs…</p>
+            ) : jobs.length === 0 ? (
+              <p className="file-state">No jobs have been submitted yet.</p>
+            ) : (
+              <div className="admin-table-wrapper">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Owner</th>
+                      <th>Type</th>
+                      <th>Priority</th>
+                      <th>Status</th>
+                      <th>Submitted</th>
+                      <th>Started</th>
+                      <th>Completed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {jobs.map((job) => (
+                      <tr key={job.id}>
+                        <td>{job.id}</td>
+                        <td>{job.ownerUsername}</td>
+                        <td>{job.jobType}</td>
+                        <td>{job.priority}</td>
+                        <td>
+                          <span className={jobStatusClass(job.status)}>
+                            {job.status}
+                          </span>
+                        </td>
+                        <td>{formatDate(job.submittedAt)}</td>
+                        <td>{formatDate(job.startedAt)}</td>
+                        <td>{formatDate(job.completedAt)}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

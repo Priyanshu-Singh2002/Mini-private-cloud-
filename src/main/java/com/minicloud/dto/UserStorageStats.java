@@ -1,4 +1,3 @@
-
 package com.minicloud.dto;
 
 public record UserStorageStats(
@@ -8,6 +7,9 @@ public record UserStorageStats(
         String role,
         String status,
         long fileCount,
-        long usedBytes
+        long usedBytes,
+        long storageQuotaBytes,
+        long remainingBytes,
+        double usagePercent
 ) {
 }

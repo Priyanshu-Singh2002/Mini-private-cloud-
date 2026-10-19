@@ -1,6 +1,8 @@
 
 package com.minicloud.entity;
 
+import com.minicloud.storage.StorageQuotaPolicy;
+
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -27,6 +29,12 @@ public class AppUser {
     @Column(nullable = false, length = 20)
     private String status = "ACTIVE";
 
+    @Column(
+            name = "storage_quota_bytes",
+            nullable = false,
+            columnDefinition = "BIGINT NOT NULL DEFAULT 104857600")
+    private Long storageQuotaBytes = StorageQuotaPolicy.DEFAULT_QUOTA_BYTES;
+
     private LocalDateTime createdAt;
 
     public AppUser() {
@@ -42,6 +50,9 @@ public class AppUser {
         }
         if (status == null || status.isBlank()) {
             status = "ACTIVE";
+        }
+        if (storageQuotaBytes == null) {
+            storageQuotaBytes = StorageQuotaPolicy.DEFAULT_QUOTA_BYTES;
         }
     }
 
@@ -95,5 +106,13 @@ public class AppUser {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public Long getStorageQuotaBytes() {
+        return storageQuotaBytes;
+    }
+
+    public void setStorageQuotaBytes(Long storageQuotaBytes) {
+        this.storageQuotaBytes = storageQuotaBytes;
     }
 }

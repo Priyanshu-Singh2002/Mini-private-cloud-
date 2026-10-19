@@ -66,6 +66,18 @@ export function getApiErrorMessage(error) {
     return serverMessage || 'Please check your input and try again.'
   }
 
+  if (status === 403) {
+    return serverMessage || 'You do not have permission to perform this action.'
+  }
+
+  if (status === 413) {
+    return serverMessage || 'This upload exceeds your storage quota.'
+  }
+
+  if (status === 429) {
+    return serverMessage || 'Too many jobs are queued. Please wait and try again.'
+  }
+
   if (status >= 500) {
     return 'The server encountered an error. Please try again later.'
   }

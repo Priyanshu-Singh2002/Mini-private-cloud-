@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface StoredFileRepository
         extends JpaRepository<StoredFile, Long> {
@@ -23,6 +24,20 @@ public interface StoredFileRepository
     // Total storage consumed by all stored files, in bytes.
     @Query("SELECT COALESCE(SUM(f.fileSize), 0) FROM StoredFile f")
     Long calculateTotalStorageBytes();
+
+    @Query("""
+            SELECT COALESCE(SUM(f.fileSize), 0)
+            FROM StoredFile f
+            WHERE f.userId = :userId
+            """)
+    Long calculateStorageBytesByUserId(@Param("userId") Long userId);
+
+    @Query("""
+            SELECT COUNT(f)
+            FROM StoredFile f
+            WHERE f.userId = :userId
+            """)
+    long countByUserId(@Param("userId") Long userId);
 
     // One row per user: [userId, fileCount, totalBytes].
     @Query("""
