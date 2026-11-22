@@ -25,6 +25,8 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     // Check whether a generated Mini Cloud user ID already exists.
     boolean existsByUniqueUserId(String uniqueUserId);
 
+    Optional<AppUser> findByUniqueUserId(String uniqueUserId);
+
     Optional<AppUser> findByUsernameOrEmail(
             String username,
             String email

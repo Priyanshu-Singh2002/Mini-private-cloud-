@@ -23,7 +23,7 @@ export default function LoginPage() {
 
   const { persistUser, persistToken } = useAuth()
 
-  const [usernameOrEmail, setUsernameOrEmail] = useState('')
+  const [uniqueUserId, setUniqueUserId] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [fieldErrors, setFieldErrors] = useState({})
@@ -52,8 +52,10 @@ export default function LoginPage() {
   function validate() {
     const next = {}
 
-    if (!usernameOrEmail.trim()) {
-      next.usernameOrEmail = 'Username or email is required.'
+    if (!uniqueUserId.trim()) {
+      next.uniqueUserId = 'Unique User ID is required.'
+    } else if (!/^MC-[A-Z0-9]{8}$/i.test(uniqueUserId.trim())) {
+      next.uniqueUserId = 'Enter a valid ID, e.g. MC-ABCD2345.'
     }
 
     if (!password) {
@@ -74,7 +76,7 @@ export default function LoginPage() {
 
     try {
       const { data } = await login({
-        usernameOrEmail: usernameOrEmail.trim(),
+        uniqueUserId: uniqueUserId.trim().toUpperCase(),
         password,
       })
 
@@ -124,7 +126,7 @@ export default function LoginPage() {
       <h2>Welcome back</h2>
 
       <p className="form-intro">
-        Sign in with your username or email.
+        Sign in using your Unique User ID and password.
       </p>
 
       {formError && (
@@ -136,31 +138,30 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} noValidate>
         <div className="field">
-          <label htmlFor="usernameOrEmail">Username or email</label>
+          <label htmlFor="uniqueUserId">Unique User ID</label>
 
           <div className="input-wrap">
             <User size={16} aria-hidden="true" />
 
             <input
-              id="usernameOrEmail"
-              name="usernameOrEmail"
+              id="uniqueUserId"
+              name="uniqueUserId"
               type="text"
+              placeholder="e.g. MC-ABCD2345"
               autoComplete="username"
-              value={usernameOrEmail}
-              onChange={(event) => setUsernameOrEmail(event.target.value)}
-              aria-invalid={Boolean(fieldErrors.usernameOrEmail)}
+              value={uniqueUserId}
+              onChange={(event) => setUniqueUserId(event.target.value)}
+              aria-invalid={Boolean(fieldErrors.uniqueUserId)}
               aria-describedby={
-                fieldErrors.usernameOrEmail
-                  ? 'usernameOrEmail-error'
-                  : undefined
+                fieldErrors.uniqueUserId ? 'uniqueUserId-error' : undefined
               }
               disabled={submitting}
             />
           </div>
 
-          {fieldErrors.usernameOrEmail && (
-            <p id="usernameOrEmail-error" className="field-error">
-              {fieldErrors.usernameOrEmail}
+          {fieldErrors.uniqueUserId && (
+            <p id="uniqueUserId-error" className="field-error">
+              {fieldErrors.uniqueUserId}
             </p>
           )}
         </div>

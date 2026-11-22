@@ -1,3 +1,4 @@
+
 package com.minicloud.service;
 
 import com.minicloud.dto.LoginRequest;
@@ -115,25 +116,22 @@ public class AuthService {
     public LoginResponse login(LoginRequest request) {
 
         if (request == null
-                || request.usernameOrEmail() == null
-                || request.usernameOrEmail().isBlank()
+                || request.uniqueUserId() == null
+                || request.uniqueUserId().isBlank()
                 || request.password() == null
                 || request.password().isBlank()) {
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Username/email and password are required.");
+                    "Unique User ID and password are required.");
         }
 
-        String identifier = request.usernameOrEmail().trim();
+        String uniqueUserId = request.uniqueUserId().trim().toUpperCase(Locale.ROOT);
 
-        AppUser user = userRepository
-                .findByUsernameOrEmail(
-                        identifier,
-                        identifier.toLowerCase(Locale.ROOT))
+        AppUser user = userRepository.findByUniqueUserId(uniqueUserId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.UNAUTHORIZED,
-                        "Invalid username/email or password."));
+                        "Invalid Unique User ID or password."));
 
         String status = user.getStatus();
 
@@ -167,7 +165,7 @@ public class AuthService {
 
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED,
-                    "Invalid username/email or password.");
+                    "Invalid Unique User ID or password.");
         }
 
         String token = jwtService.generateToken(

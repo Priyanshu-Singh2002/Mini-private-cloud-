@@ -21,9 +21,9 @@ export function register({
   })
 }
 
-export function login({ usernameOrEmail, password }) {
+export function login({ uniqueUserId, password }) {
   return client.post('/auth/login', {
-    usernameOrEmail,
+    uniqueUserId,
     password,
   })
 }
