@@ -2,7 +2,6 @@
 package com.minicloud.entity;
 
 import com.minicloud.storage.StorageQuotaPolicy;
-
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -23,6 +22,21 @@ public class AppUser {
     @Column(nullable = false)
     private String passwordHash;
 
+    @Column(name = "unique_user_id", unique = true, length = 11)
+    private String uniqueUserId;
+
+    @Column(length = 100)
+    private String fullName;
+
+    @Column(length = 30)
+    private String phoneNumber;
+
+    @Column(length = 100)
+    private String organization;
+
+    @Column(length = 1000)
+    private String accessReason;
+
     @Column(nullable = false, length = 20)
     private String role = "USER";
 
@@ -30,9 +44,10 @@ public class AppUser {
     private String status = "ACTIVE";
 
     @Column(
-            name = "storage_quota_bytes",
-            nullable = false,
-            columnDefinition = "BIGINT NOT NULL DEFAULT 104857600")
+        name = "storage_quota_bytes",
+        nullable = false,
+        columnDefinition = "BIGINT NOT NULL DEFAULT 104857600"
+    )
     private Long storageQuotaBytes = StorageQuotaPolicy.DEFAULT_QUOTA_BYTES;
 
     private LocalDateTime createdAt;
@@ -84,6 +99,14 @@ public class AppUser {
         this.passwordHash = passwordHash;
     }
 
+    public String getUniqueUserId() {
+        return uniqueUserId;
+    }
+
+    public void setUniqueUserId(String uniqueUserId) {
+        this.uniqueUserId = uniqueUserId;
+    }
+
     public String getRole() {
         return role;
     }
@@ -97,10 +120,13 @@ public class AppUser {
     }
 
     public void setStatus(String status) {
-        if (!"ACTIVE".equals(status) && !"SUSPENDED".equals(status)) {
-            throw new IllegalArgumentException(
-                    "Status must be ACTIVE or SUSPENDED.");
+        if (!"PENDING".equals(status)
+                && !"ACTIVE".equals(status)
+                && !"REJECTED".equals(status)
+                && !"SUSPENDED".equals(status)) {
+            throw new IllegalArgumentException("Invalid account status.");
         }
+
         this.status = status;
     }
 
@@ -114,5 +140,37 @@ public class AppUser {
 
     public void setStorageQuotaBytes(Long storageQuotaBytes) {
         this.storageQuotaBytes = storageQuotaBytes;
+    }
+
+    public String getFullName() {
+        return fullName;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
+
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
+
+    public void setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber;
+    }
+
+    public String getOrganization() {
+        return organization;
+    }
+
+    public void setOrganization(String organization) {
+        this.organization = organization;
+    }
+
+    public String getAccessReason() {
+        return accessReason;
+    }
+
+    public void setAccessReason(String accessReason) {
+        this.accessReason = accessReason;
     }
 }

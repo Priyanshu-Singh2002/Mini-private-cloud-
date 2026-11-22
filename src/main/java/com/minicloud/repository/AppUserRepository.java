@@ -1,9 +1,11 @@
+
 package com.minicloud.repository;
 
 import com.minicloud.entity.AppUser;
 
 import jakarta.persistence.LockModeType;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,8 +14,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface AppUserRepository
-        extends JpaRepository<AppUser, Long> {
+public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 
     boolean existsByUsername(String username);
 
@@ -21,10 +22,16 @@ public interface AppUserRepository
 
     boolean existsByRole(String role);
 
+    // Check whether a generated Mini Cloud user ID already exists.
+    boolean existsByUniqueUserId(String uniqueUserId);
+
     Optional<AppUser> findByUsernameOrEmail(
             String username,
             String email
     );
+
+    // Retrieve registration requests awaiting admin review.
+    List<AppUser> findByStatusOrderByCreatedAtAsc(String status);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT u FROM AppUser u WHERE u.id = :id")
@@ -36,5 +43,7 @@ public interface AppUserRepository
             SET u.storageQuotaBytes = :defaultQuota
             WHERE u.storageQuotaBytes IS NULL
             """)
-    int backfillNullStorageQuotas(@Param("defaultQuota") long defaultQuota);
+    int backfillNullStorageQuotas(
+            @Param("defaultQuota") long defaultQuota
+    );
 }

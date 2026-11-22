@@ -2,8 +2,10 @@
 package com.minicloud.controller;
 
 import com.minicloud.dto.AdminUserResponse;
+import com.minicloud.dto.RegistrationRequestAdminResponse;
 import com.minicloud.dto.UpdateStorageQuotaRequest;
 import com.minicloud.dto.UserStorageStats;
+
 import com.minicloud.service.AdminUserService;
 import com.minicloud.service.StorageQuotaService;
 
@@ -31,6 +33,30 @@ public class AdminUserController {
     @GetMapping
     public List<AdminUserResponse> listUsers() {
         return adminUserService.listUsers();
+    }
+
+    // List registration requests waiting for approval.
+    @GetMapping("/pending")
+    public List<RegistrationRequestAdminResponse> listPendingRequests() {
+        return adminUserService.listPendingRequests();
+    }
+
+    // Approve a registration request.
+    @PatchMapping("/{userId}/approve")
+    public ResponseEntity<RegistrationRequestAdminResponse> approveRegistration(
+            @PathVariable Long userId) {
+
+        return ResponseEntity.ok(
+                adminUserService.approveRegistration(userId));
+    }
+
+    // Reject a registration request.
+    @PatchMapping("/{userId}/reject")
+    public ResponseEntity<RegistrationRequestAdminResponse> rejectRegistration(
+            @PathVariable Long userId) {
+
+        return ResponseEntity.ok(
+                adminUserService.rejectRegistration(userId));
     }
 
     @PatchMapping("/{userId}/suspend")

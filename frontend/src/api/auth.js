@@ -1,10 +1,23 @@
+
 import client from './client'
 
-export function register({ username, email, password }) {
+export function register({
+  username,
+  email,
+  password,
+  fullName,
+  phoneNumber,
+  organization,
+  accessReason,
+}) {
   return client.post('/auth/register', {
     username,
     email,
     password,
+    fullName,
+    phoneNumber,
+    organization,
+    accessReason,
   })
 }
 

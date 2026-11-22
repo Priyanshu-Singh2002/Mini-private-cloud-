@@ -59,7 +59,13 @@ class AuthServiceTest {
         @Test
         void registerShouldSaveUserWithEncodedPassword() {
                 RegisterRequest request = new RegisterRequest(
-                                "testuser", "test@example.com", "password123");
+                                "testuser",
+                                "test@example.com",
+                                "password123",
+                                "Test User",
+                                "9876543210",
+                                "Example College",
+                                "I need access to perform computing jobs for my academic project.");
 
                 when(userRepository.existsByUsername("testuser"))
                                 .thenReturn(false);
@@ -78,13 +84,17 @@ class AuthServiceTest {
 
                 verify(passwordEncoder).encode("password123");
 
-                ArgumentCaptor<AppUser> captor =
-                                ArgumentCaptor.forClass(AppUser.class);
+                ArgumentCaptor<AppUser> captor = ArgumentCaptor.forClass(AppUser.class);
                 verify(userRepository).save(captor.capture());
                 captor.getValue().prePersist();
-                assertEquals(
-                                com.minicloud.storage.StorageQuotaPolicy.DEFAULT_QUOTA_BYTES,
+                assertEquals(com.minicloud.storage.StorageQuotaPolicy.DEFAULT_QUOTA_BYTES,
                                 captor.getValue().getStorageQuotaBytes());
+                assertEquals("PENDING", captor.getValue().getStatus());
+                assertEquals("Test User", captor.getValue().getFullName());
+                assertEquals("9876543210", captor.getValue().getPhoneNumber());
+                assertEquals("Example College", captor.getValue().getOrganization());
+                assertEquals("I need access to perform computing jobs for my academic project.",
+                                captor.getValue().getAccessReason());
         }
 
         @Test
@@ -103,7 +113,13 @@ class AuthServiceTest {
         @Test
         void registerShouldRejectDuplicateUsername() {
                 RegisterRequest request = new RegisterRequest(
-                                "testuser", "test@example.com", "password123");
+                                "testuser",
+                                "test@example.com",
+                                "password123",
+                                "Test User",
+                                "9876543210",
+                                "Example College",
+                                "I need access for my academic project.");
 
                 when(userRepository.existsByUsername("testuser"))
                                 .thenReturn(true);
@@ -119,7 +135,13 @@ class AuthServiceTest {
         @Test
         void registerShouldRejectDuplicateEmail() {
                 RegisterRequest request = new RegisterRequest(
-                                "testuser", "test@example.com", "password123");
+                                "testuser",
+                                "test@example.com",
+                                "password123",
+                                "Test User",
+                                "9876543210",
+                                "Example College",
+                                "I need access for my academic project.");
 
                 when(userRepository.existsByUsername("testuser"))
                                 .thenReturn(false);
@@ -230,5 +252,30 @@ class AuthServiceTest {
 
                 assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
                 verifyNoInteractions(userRepository, passwordEncoder);
+        }
+
+        @Test
+        void loginShouldRejectPendingUser() {
+                user.setStatus("PENDING");
+
+                LoginRequest request = new LoginRequest(
+                                "testuser",
+                                "password123");
+
+                when(userRepository.findByUsernameOrEmail(
+                                "testuser", "testuser"))
+                                .thenReturn(Optional.of(user));
+
+                ResponseStatusException exception = assertThrows(
+                                ResponseStatusException.class,
+                                () -> authService.login(request));
+
+                assertEquals(
+                                HttpStatus.FORBIDDEN,
+                                exception.getStatusCode());
+
+                verify(passwordEncoder, never()).matches(any(), any());
+                verify(jwtService, never()).generateToken(
+                                any(), any(), any(), any());
         }
 }

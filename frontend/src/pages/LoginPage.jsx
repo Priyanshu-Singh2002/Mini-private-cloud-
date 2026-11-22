@@ -1,13 +1,28 @@
-import { AlertCircle, Eye, EyeOff, Loader2, Lock, User } from 'lucide-react'
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+
+import {
+  AlertCircle,
+  CheckCircle,
+  Eye,
+  EyeOff,
+  Loader2,
+  Lock,
+  User,
+  X,
+} from 'lucide-react'
+
+import { useEffect, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+
 import { login } from '../api/auth'
 import { getApiErrorMessage } from '../api/errors'
 import { useAuth } from '../hooks/useAuth'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+
   const { persistUser, persistToken } = useAuth()
+
   const [usernameOrEmail, setUsernameOrEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -15,14 +30,36 @@ export default function LoginPage() {
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  const [showRegistrationToast, setShowRegistrationToast] = useState(
+    location.state?.registered === true
+  )
+
+  useEffect(() => {
+    if (!location.state?.registered) return
+
+    const timer = window.setTimeout(() => {
+      setShowRegistrationToast(false)
+
+      navigate(location.pathname, {
+        replace: true,
+        state: null,
+      })
+    }, 4500)
+
+    return () => window.clearTimeout(timer)
+  }, [location.key, location.pathname, location.state, navigate])
+
   function validate() {
     const next = {}
+
     if (!usernameOrEmail.trim()) {
       next.usernameOrEmail = 'Username or email is required.'
     }
+
     if (!password) {
       next.password = 'Password is required.'
     }
+
     setFieldErrors(next)
     return Object.keys(next).length === 0
   }
@@ -30,11 +67,11 @@ export default function LoginPage() {
   async function handleSubmit(event) {
     event.preventDefault()
     setFormError('')
-    if (!validate()) {
-      return
-    }
+
+    if (!validate()) return
 
     setSubmitting(true)
+
     try {
       const { data } = await login({
         usernameOrEmail: usernameOrEmail.trim(),
@@ -43,6 +80,7 @@ export default function LoginPage() {
 
       persistToken(data.token)
       persistUser(data)
+
       navigate(data.role === 'ADMIN' ? '/admin' : '/dashboard', {
         replace: true,
       })
@@ -54,22 +92,55 @@ export default function LoginPage() {
   }
 
   return (
-    <section>
-      <h2>Welcome back</h2>
-      <p className="form-intro">Sign in with your username or email.</p>
+    <section className="login-page">
+      {showRegistrationToast && (
+        <div className="toast toast-success" role="status">
+          <CheckCircle size={21} aria-hidden="true" />
 
-      {formError ? (
+          <div className="toast-content">
+            <strong>Registration submitted!</strong>
+            <p>
+              Your request is waiting for administrator approval.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="toast-close"
+            onClick={() => {
+              setShowRegistrationToast(false)
+              navigate(location.pathname, {
+                replace: true,
+                state: null,
+              })
+            }}
+            aria-label="Dismiss notification"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
+
+      <h2>Welcome back</h2>
+
+      <p className="form-intro">
+        Sign in with your username or email.
+      </p>
+
+      {formError && (
         <div className="alert alert-error" role="alert">
           <AlertCircle size={18} aria-hidden="true" />
           <span>{formError}</span>
         </div>
-      ) : null}
+      )}
 
       <form onSubmit={handleSubmit} noValidate>
         <div className="field">
           <label htmlFor="usernameOrEmail">Username or email</label>
+
           <div className="input-wrap">
             <User size={16} aria-hidden="true" />
+
             <input
               id="usernameOrEmail"
               name="usernameOrEmail"
@@ -79,22 +150,27 @@ export default function LoginPage() {
               onChange={(event) => setUsernameOrEmail(event.target.value)}
               aria-invalid={Boolean(fieldErrors.usernameOrEmail)}
               aria-describedby={
-                fieldErrors.usernameOrEmail ? 'usernameOrEmail-error' : undefined
+                fieldErrors.usernameOrEmail
+                  ? 'usernameOrEmail-error'
+                  : undefined
               }
               disabled={submitting}
             />
           </div>
-          {fieldErrors.usernameOrEmail ? (
+
+          {fieldErrors.usernameOrEmail && (
             <p id="usernameOrEmail-error" className="field-error">
               {fieldErrors.usernameOrEmail}
             </p>
-          ) : null}
+          )}
         </div>
 
         <div className="field">
           <label htmlFor="password">Password</label>
+
           <div className="input-wrap">
             <Lock size={16} aria-hidden="true" />
+
             <input
               id="password"
               name="password"
@@ -103,9 +179,12 @@ export default function LoginPage() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               aria-invalid={Boolean(fieldErrors.password)}
-              aria-describedby={fieldErrors.password ? 'password-error' : undefined}
+              aria-describedby={
+                fieldErrors.password ? 'password-error' : undefined
+              }
               disabled={submitting}
             />
+
             <button
               type="button"
               className="icon-button"
@@ -115,14 +194,19 @@ export default function LoginPage() {
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
-          {fieldErrors.password ? (
+
+          {fieldErrors.password && (
             <p id="password-error" className="field-error">
               {fieldErrors.password}
             </p>
-          ) : null}
+          )}
         </div>
 
-        <button className="primary-button" type="submit" disabled={submitting}>
+        <button
+          className="primary-button"
+          type="submit"
+          disabled={submitting}
+        >
           {submitting ? (
             <>
               <Loader2 size={18} className="spin" aria-hidden="true" />
