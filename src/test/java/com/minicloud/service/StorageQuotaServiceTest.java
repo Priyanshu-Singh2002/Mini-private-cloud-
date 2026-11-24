@@ -21,6 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,6 +29,9 @@ class StorageQuotaServiceTest {
 
     @Mock
     private AppUserRepository userRepository;
+
+    @Mock
+    private AuditLogService auditLogService;
 
     @Mock
     private StoredFileRepository storedFileRepository;
@@ -43,6 +47,7 @@ class StorageQuotaServiceTest {
         ReflectionTestUtils.setField(user, "id", 7L);
         user.setUsername("alice");
         user.setEmail("alice@example.com");
+        user.setUniqueUserId("MC-A7K92P4X");
         user.setStorageQuotaBytes(StorageQuotaPolicy.DEFAULT_QUOTA_BYTES);
     }
 
@@ -84,18 +89,39 @@ class StorageQuotaServiceTest {
 
     @Test
     void adminCanUpdateQuota() {
+        AppUser admin = new AppUser();
+        ReflectionTestUtils.setField(admin, "id", 1L);
+        admin.setUsername("admin");
+        admin.setUniqueUserId("MC-F850BEE1");
+
         when(userRepository.findById(7L)).thenReturn(Optional.of(user));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(admin));
+
         when(storedFileRepository.calculateStorageBytesByUserId(7L))
                 .thenReturn(0L);
         when(storedFileRepository.countByUserId(7L)).thenReturn(0L);
 
         long newQuota = 200L * 1024 * 1024;
+
         UserStorageStats stats = storageQuotaService.updateQuota(
                 7L,
-                new UpdateStorageQuotaRequest(newQuota));
+                new UpdateStorageQuotaRequest(newQuota),
+                1L);
 
         assertEquals(newQuota, stats.storageQuotaBytes());
         assertEquals(newQuota, user.getStorageQuotaBytes());
+
+        verify(auditLogService).record(
+                1L,
+                "admin",
+                "MC-F850BEE1",
+                "USER_QUOTA_UPDATED",
+                "USER",
+                7L,
+                "MC-A7K92P4X",
+                "Storage quota for user alice changed from "
+                        + StorageQuotaPolicy.DEFAULT_QUOTA_BYTES
+                        + " bytes to " + newQuota + " bytes.");
     }
 
     @Test
@@ -104,7 +130,8 @@ class StorageQuotaServiceTest {
                 ResponseStatusException.class,
                 () -> storageQuotaService.updateQuota(
                         7L,
-                        new UpdateStorageQuotaRequest(0L)));
+                        new UpdateStorageQuotaRequest(0L),
+                        1L));
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
         verify(userRepository, never()).findById(any());
@@ -114,9 +141,10 @@ class StorageQuotaServiceTest {
     void rejectNegativeQuota() {
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
-                () -> storageQuotaService.updateQuota(
+                (() -> storageQuotaService.updateQuota(
                         7L,
-                        new UpdateStorageQuotaRequest(-10L)));
+                        new UpdateStorageQuotaRequest(-10L),
+                        1L)));
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
     }
@@ -125,10 +153,11 @@ class StorageQuotaServiceTest {
     void rejectExcessivelyLargeQuota() {
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
-                () -> storageQuotaService.updateQuota(
-                        7L,
-                        new UpdateStorageQuotaRequest(
-                                StorageQuotaPolicy.MAX_QUOTA_BYTES + 1)));
+               () -> storageQuotaService.updateQuota(
+        7L,
+        new UpdateStorageQuotaRequest(
+                StorageQuotaPolicy.MAX_QUOTA_BYTES + 1),
+        1L));
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
     }

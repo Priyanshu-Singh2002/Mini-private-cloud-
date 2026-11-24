@@ -11,10 +11,12 @@ import com.minicloud.service.StorageQuotaService;
 
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/admin/users")
@@ -35,28 +37,31 @@ public class AdminUserController {
         return adminUserService.listUsers();
     }
 
-    // List registration requests waiting for approval.
     @GetMapping("/pending")
     public List<RegistrationRequestAdminResponse> listPendingRequests() {
         return adminUserService.listPendingRequests();
     }
 
-    // Approve a registration request.
     @PatchMapping("/{userId}/approve")
     public ResponseEntity<RegistrationRequestAdminResponse> approveRegistration(
-            @PathVariable Long userId) {
+            @PathVariable Long userId,
+            @AuthenticationPrincipal Jwt jwt) {
+
+        Long adminId = getUserId(jwt);
 
         return ResponseEntity.ok(
-                adminUserService.approveRegistration(userId));
+                adminUserService.approveRegistration(userId, adminId));
     }
 
-    // Reject a registration request.
     @PatchMapping("/{userId}/reject")
     public ResponseEntity<RegistrationRequestAdminResponse> rejectRegistration(
-            @PathVariable Long userId) {
+            @PathVariable Long userId,
+            @AuthenticationPrincipal Jwt jwt) {
+
+        Long adminId = getUserId(jwt);
 
         return ResponseEntity.ok(
-                adminUserService.rejectRegistration(userId));
+                adminUserService.rejectRegistration(userId, adminId));
     }
 
     @PatchMapping("/{userId}/suspend")
@@ -72,27 +77,39 @@ public class AdminUserController {
 
     @PatchMapping("/{userId}/reactivate")
     public ResponseEntity<AdminUserResponse> reactivateUser(
-            @PathVariable Long userId) {
+            @PathVariable Long userId,
+            @AuthenticationPrincipal Jwt jwt) {
+
+        Long adminId = getUserId(jwt);
 
         return ResponseEntity.ok(
-                adminUserService.reactivateUser(userId));
+                adminUserService.reactivateUser(userId, adminId));
     }
 
     @PatchMapping("/{userId}/quota")
     public ResponseEntity<UserStorageStats> updateQuota(
             @PathVariable Long userId,
-            @RequestBody UpdateStorageQuotaRequest request) {
+            @RequestBody UpdateStorageQuotaRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+
+        Long adminId = getUserId(jwt);
 
         return ResponseEntity.ok(
-                storageQuotaService.updateQuota(userId, request));
+                storageQuotaService.updateQuota(userId, request, adminId));
     }
 
     private Long getUserId(Jwt jwt) {
+        if (jwt == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Authentication is required.");
+        }
+
         Object claim = jwt.getClaim("userId");
 
         if (!(claim instanceof Number userId)) {
-            throw new org.springframework.web.server.ResponseStatusException(
-                    org.springframework.http.HttpStatus.UNAUTHORIZED,
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
                     "Invalid user identity in token.");
         }
 

@@ -6,6 +6,8 @@ import com.minicloud.dto.RegistrationRequestAdminResponse;
 import com.minicloud.entity.AppUser;
 import com.minicloud.repository.AppUserRepository;
 
+import com.minicloud.service.AuditLogService;
+
 import java.security.SecureRandom;
 import java.util.Comparator;
 import java.util.List;
@@ -23,25 +25,26 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class AdminUserService {
 
-    private static final Logger logger =
-            LoggerFactory.getLogger(AdminUserService.class);
+    private static final Logger logger = LoggerFactory.getLogger(AdminUserService.class);
 
     private static final String USER_ID_PREFIX = "MC-";
-    private static final String USER_ID_CHARACTERS =
-            "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private static final String USER_ID_CHARACTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final int USER_ID_LENGTH = 8;
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final AppUserRepository userRepository;
     private final EmailService emailService;
+    private final AuditLogService auditLogService;
 
     public AdminUserService(
             AppUserRepository userRepository,
-            EmailService emailService
-    ) {
+            EmailService emailService,
+            AuditLogService auditLogService) {
+
         this.userRepository = userRepository;
         this.emailService = emailService;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional(readOnly = true)
@@ -66,26 +69,35 @@ public class AdminUserService {
     }
 
     // Approve a pending registration request.
+
     @Transactional
-    public RegistrationRequestAdminResponse approveRegistration(Long userId) {
+    public RegistrationRequestAdminResponse approveRegistration(
+            Long userId, Long adminId) {
 
         AppUser user = getUserForUpdate(userId);
+        AppUser admin = getUser(adminId);
 
         validatePendingRequest(user);
 
-        // Generate and assign a permanent unique ID.
         String uniqueUserId = generateUniqueUserId();
         user.setUniqueUserId(uniqueUserId);
-
-        // Activate the account.
         user.setStatus("ACTIVE");
 
-        // Prepare email details before transaction completion.
+        auditLogService.record(
+                admin.getId(),
+                admin.getUsername(),
+                admin.getUniqueUserId(),
+                "USER_APPROVED",
+                "USER",
+                user.getId(),
+                uniqueUserId,
+                "Administrator approved registration for user "
+                        + user.getUsername() + ".");
+
         String recipientEmail = user.getEmail();
         String recipientName = user.getFullName();
         String approvedUserId = uniqueUserId;
 
-        // Send email only after the database transaction commits.
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
 
@@ -95,38 +107,51 @@ public class AdminUserService {
                             sendApprovalEmail(
                                     recipientEmail,
                                     recipientName,
-                                    approvedUserId
-                            );
+                                    approvedUserId);
                         } catch (Exception exception) {
                             logger.error(
                                     "Account approved, but approval email "
                                             + "could not be sent to {}",
                                     recipientEmail,
-                                    exception
-                            );
+                                    exception);
                         }
                     }
-                }
-        );
+                });
 
         return toRegistrationRequestResponse(user);
     }
 
     // Reject a pending registration request.
     @Transactional
-    public RegistrationRequestAdminResponse rejectRegistration(Long userId) {
+    public RegistrationRequestAdminResponse rejectRegistration(
+            Long userId, Long adminId) {
+
         AppUser user = getUserForUpdate(userId);
+        AppUser admin = getUser(adminId);
 
         validatePendingRequest(user);
 
         user.setStatus("REJECTED");
+
+        auditLogService.record(
+                admin.getId(),
+                admin.getUsername(),
+                admin.getUniqueUserId(),
+                "USER_REJECTED",
+                "USER",
+                user.getId(),
+                user.getUniqueUserId(),
+                "Administrator rejected registration for user "
+                        + user.getUsername() + ".");
 
         return toRegistrationRequestResponse(user);
     }
 
     @Transactional
     public AdminUserResponse suspendUser(Long userId, Long adminId) {
+
         AppUser user = getUserForUpdate(userId);
+        AppUser admin = getUser(adminId);
 
         if (userId.equals(adminId)) {
             throw new ResponseStatusException(
@@ -148,12 +173,24 @@ public class AdminUserService {
 
         user.setStatus("SUSPENDED");
 
+        auditLogService.record(
+                admin.getId(),
+                admin.getUsername(),
+                admin.getUniqueUserId(),
+                "USER_SUSPENDED",
+                "USER",
+                user.getId(),
+                user.getUniqueUserId(),
+                "Administrator suspended user " + user.getUsername() + ".");
+
         return toResponse(user);
     }
 
     @Transactional
-    public AdminUserResponse reactivateUser(Long userId) {
+    public AdminUserResponse reactivateUser(Long userId, Long adminId) {
+
         AppUser user = getUserForUpdate(userId);
+        AppUser admin = getUser(adminId);
 
         if (!"SUSPENDED".equals(user.getStatus())) {
             throw new ResponseStatusException(
@@ -162,6 +199,16 @@ public class AdminUserService {
         }
 
         user.setStatus("ACTIVE");
+
+        auditLogService.record(
+                admin.getId(),
+                admin.getUsername(),
+                admin.getUniqueUserId(),
+                "USER_REACTIVATED",
+                "USER",
+                user.getId(),
+                user.getUniqueUserId(),
+                "Administrator reactivated user " + user.getUsername() + ".");
 
         return toResponse(user);
     }
@@ -191,15 +238,12 @@ public class AdminUserService {
     private void sendApprovalEmail(
             String recipientEmail,
             String recipientName,
-            String uniqueUserId
-    ) {
-        String displayName =
-                recipientName == null || recipientName.isBlank()
-                        ? "User"
-                        : recipientName;
+            String uniqueUserId) {
+        String displayName = recipientName == null || recipientName.isBlank()
+                ? "User"
+                : recipientName;
 
-        String subject =
-                "Your Mini Private Cloud account has been approved!";
+        String subject = "Your Mini Private Cloud account has been approved!";
 
         String body = """
                 Hello %s,
@@ -266,8 +310,7 @@ public class AdminUserService {
     }
 
     private RegistrationRequestAdminResponse toRegistrationRequestResponse(
-            AppUser user
-    ) {
+            AppUser user) {
         return new RegistrationRequestAdminResponse(
                 user.getId(),
                 user.getUsername(),

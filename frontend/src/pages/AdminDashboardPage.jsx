@@ -1,14 +1,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft,
   RefreshCw,
-  ShieldCheck,
   UserRound,
   UserX,
   UserCheck,
-  LogOut,
   Info,
   HardDrive,
   Database,
@@ -24,6 +20,7 @@ import { updateUserQuota } from '../api/storage'
 import { getAdminJobs } from '../api/jobs'
 import { getApiErrorMessage } from '../api/errors'
 import { useAuth } from '../hooks/useAuth'
+import AdminFrame from '../components/AdminFrame'
 
 const BYTES_PER_MB = 1024 * 1024
 
@@ -72,8 +69,7 @@ function userStatusClass(status) {
 }
 
 export default function AdminDashboardPage() {
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
+  const { user } = useAuth()
 
   // Registered users
   const [users, setUsers] = useState([])
@@ -325,11 +321,6 @@ export default function AdminDashboardPage() {
     }
   }
 
-  function handleLogout() {
-    logout()
-    navigate('/login', { replace: true })
-  }
-
   async function refreshDashboard() {
     await Promise.all([
       loadUsers(),
@@ -348,66 +339,7 @@ export default function AdminDashboardPage() {
   ).length
 
   return (
-    <div className="dashboard-shell">
-      <aside className="sidebar">
-        <div className="sidebar-brand">
-          <ShieldCheck size={22} />
-          <span>Mini Cloud Admin</span>
-        </div>
-
-        <nav aria-label="Admin navigation">
-          <Link className="nav-item" to="/dashboard">
-            <ArrowLeft size={18} />
-            My workspace
-          </Link>
-
-          <a
-            className="nav-item is-active"
-            href="/admin"
-            aria-current="page"
-          >
-            <UserRound size={18} />
-            User management
-          </a>
-        </nav>
-
-        <p className="sidebar-note">
-          Manage accounts and access to your private cloud.
-        </p>
-      </aside>
-
-      <div className="dashboard-main">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">Administration</p>
-            <h1>Admin dashboard</h1>
-          </div>
-
-          <div className="topbar-actions">
-            <div className="user-chip">
-              <span className="avatar">
-                {(user?.username || 'A')
-                  .slice(0, 2)
-                  .toUpperCase()}
-              </span>
-
-              <span>
-                <strong>{user?.username}</strong>
-                <small>ADMIN</small>
-              </span>
-            </div>
-
-            <button
-              type="button"
-              className="ghost-button"
-              onClick={handleLogout}
-            >
-              <LogOut size={16} />
-              Log out
-            </button>
-          </div>
-        </header>
-
+    <AdminFrame>
         <main className="dashboard-content">
           {/* Dashboard introduction */}
           <section className="welcome-card">
@@ -1017,7 +949,6 @@ export default function AdminDashboardPage() {
             </div>
           </section>
         </main>
-      </div>
-    </div>
+    </AdminFrame>
   )
 }

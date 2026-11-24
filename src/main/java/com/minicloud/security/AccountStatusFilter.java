@@ -31,6 +31,11 @@ public class AccountStatusFilter extends OncePerRequestFilter {
             FilterChain filterChain)
             throws ServletException, IOException {
 
+        if (isLogout(request)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         Authentication authentication =
                 SecurityContextHolder.getContext().getAuthentication();
 
@@ -53,6 +58,11 @@ public class AccountStatusFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private static boolean isLogout(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        return uri != null && uri.endsWith("/api/auth/logout");
     }
 
     private void reject(HttpServletResponse response) throws IOException {

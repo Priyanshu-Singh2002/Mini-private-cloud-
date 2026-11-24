@@ -2,6 +2,8 @@
 import { useMemo, useState } from 'react'
 import { AuthContext } from './auth-context'
 
+import { logoutRequest } from '../api/auth'
+
 const STORAGE_KEY = 'minicloud.user'
 const TOKEN_KEY = 'minicloud.token'
 
@@ -58,15 +60,23 @@ export function AuthProvider({ children }) {
       localStorage.setItem(TOKEN_KEY, token)
     }
 
-    function logout() {
+    async function logout() {
       try {
-        localStorage.removeItem(STORAGE_KEY)
-        localStorage.removeItem(TOKEN_KEY)
-      } catch {
-        // Ignore browser storage errors during logout.
-      }
+        // Send logout request while the JWT token is still available.
+        await logoutRequest()
+      } catch (error) {
+        console.error('Backend logout request failed:', error)
+      } finally {
+        // Always clear local authentication, even if the API request fails.
+        try {
+          localStorage.removeItem(STORAGE_KEY)
+          localStorage.removeItem(TOKEN_KEY)
+        } catch {
+          // Ignore browser storage errors during logout.
+        }
 
-      setUser(null)
+        setUser(null)
+      }
     }
 
     return { user, persistUser, persistToken, logout }

@@ -27,3 +27,8 @@ export function login({ uniqueUserId, password }) {
     password,
   })
 }
+
+
+export function logoutRequest() {
+  return client.post('/auth/logout')
+}

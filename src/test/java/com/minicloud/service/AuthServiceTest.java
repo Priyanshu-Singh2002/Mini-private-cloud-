@@ -1,5 +1,6 @@
-
 package com.minicloud.service;
+
+import com.minicloud.service.AuditLogService;
 
 import com.minicloud.dto.LoginRequest;
 import com.minicloud.dto.LoginResponse;
@@ -32,388 +33,356 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
 
-    @Mock
-    private AppUserRepository userRepository;
+        @Mock
+        private AppUserRepository userRepository;
 
-    @Mock
-    private PasswordEncoder passwordEncoder;
+        @Mock
+        private AuditLogService auditLogService;
 
-    @Mock
-    private JwtService jwtService;
+        @Mock
+        private PasswordEncoder passwordEncoder;
 
-    @InjectMocks
-    private AuthService authService;
+        @Mock
+        private JwtService jwtService;
 
-    private AppUser user;
+        @InjectMocks
+        private AuthService authService;
 
-    @BeforeEach
-    void setUp() {
-        user = new AppUser();
+        private AppUser user;
 
-        ReflectionTestUtils.setField(user, "id", 1L);
+        @BeforeEach
+        void setUp() {
+                user = new AppUser();
 
-        user.setUsername("testuser");
-        user.setEmail("test@example.com");
-        user.setUniqueUserId("MC-ABCD2345");
-        user.setPasswordHash("encoded-password");
-        user.setStatus("ACTIVE");
-    }
+                ReflectionTestUtils.setField(user, "id", 1L);
 
-    @Test
-    void registerShouldSaveUserWithEncodedPassword() {
+                user.setUsername("testuser");
+                user.setEmail("test@example.com");
+                user.setUniqueUserId("MC-ABCD2345");
+                user.setPasswordHash("encoded-password");
+                user.setStatus("ACTIVE");
+        }
 
-        RegisterRequest request = new RegisterRequest(
-                "testuser",
-                "test@example.com",
-                "password123",
-                "Test User",
-                "9876543210",
-                "Example College",
-                "I need access to perform computing jobs for my academic project."
-        );
+        @Test
+        void registerShouldSaveUserWithEncodedPassword() {
 
-        when(userRepository.existsByUsername("testuser"))
-                .thenReturn(false);
+                RegisterRequest request = new RegisterRequest(
+                                "testuser",
+                                "test@example.com",
+                                "password123",
+                                "Test User",
+                                "9876543210",
+                                "Example College",
+                                "I need access to perform computing jobs for my academic project.");
 
-        when(userRepository.existsByEmail("test@example.com"))
-                .thenReturn(false);
+                when(userRepository.existsByUsername("testuser"))
+                                .thenReturn(false);
 
-        when(passwordEncoder.encode("password123"))
-                .thenReturn("encoded-password");
+                when(userRepository.existsByEmail("test@example.com"))
+                                .thenReturn(false);
 
-        when(userRepository.save(any(AppUser.class)))
-                .thenReturn(user);
+                when(passwordEncoder.encode("password123"))
+                                .thenReturn("encoded-password");
 
-        RegisterResponse response = authService.register(request);
+                when(userRepository.save(any(AppUser.class)))
+                                .thenReturn(user);
 
-        assertEquals(1L, response.id());
-        assertEquals("testuser", response.username());
-        assertEquals("test@example.com", response.email());
+                RegisterResponse response = authService.register(request);
 
-        verify(passwordEncoder).encode("password123");
+                assertEquals(1L, response.id());
+                assertEquals("testuser", response.username());
+                assertEquals("test@example.com", response.email());
 
-        ArgumentCaptor<AppUser> captor =
-                ArgumentCaptor.forClass(AppUser.class);
+                verify(passwordEncoder).encode("password123");
 
-        verify(userRepository).save(captor.capture());
+                ArgumentCaptor<AppUser> captor = ArgumentCaptor.forClass(AppUser.class);
 
-        captor.getValue().prePersist();
+                verify(userRepository).save(captor.capture());
 
-        assertEquals(
-                com.minicloud.storage.StorageQuotaPolicy.DEFAULT_QUOTA_BYTES,
-                captor.getValue().getStorageQuotaBytes()
-        );
+                captor.getValue().prePersist();
 
-        assertEquals("PENDING", captor.getValue().getStatus());
-        assertEquals("Test User", captor.getValue().getFullName());
-        assertEquals("9876543210", captor.getValue().getPhoneNumber());
-        assertEquals("Example College", captor.getValue().getOrganization());
+                assertEquals(
+                                com.minicloud.storage.StorageQuotaPolicy.DEFAULT_QUOTA_BYTES,
+                                captor.getValue().getStorageQuotaBytes());
 
-        assertEquals(
-                "I need access to perform computing jobs for my academic project.",
-                captor.getValue().getAccessReason()
-        );
-    }
+                assertEquals("PENDING", captor.getValue().getStatus());
+                assertEquals("Test User", captor.getValue().getFullName());
+                assertEquals("9876543210", captor.getValue().getPhoneNumber());
+                assertEquals("Example College", captor.getValue().getOrganization());
 
-    @Test
-    void registerShouldRejectShortPassword() {
+                assertEquals(
+                                "I need access to perform computing jobs for my academic project.",
+                                captor.getValue().getAccessReason());
+        }
 
-        RegisterRequest request = new RegisterRequest(
-                "testuser",
-                "test@example.com",
-                "short"
-        );
+        @Test
+        void registerShouldRejectShortPassword() {
 
-        ResponseStatusException exception = assertThrows(
-                ResponseStatusException.class,
-                () -> authService.register(request)
-        );
+                RegisterRequest request = new RegisterRequest(
+                                "testuser",
+                                "test@example.com",
+                                "short");
 
-        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+                ResponseStatusException exception = assertThrows(
+                                ResponseStatusException.class,
+                                () -> authService.register(request));
 
-        verifyNoInteractions(userRepository, passwordEncoder);
-    }
-
-    @Test
-    void registerShouldRejectDuplicateUsername() {
-
-        RegisterRequest request = new RegisterRequest(
-                "testuser",
-                "test@example.com",
-                "password123",
-                "Test User",
-                "9876543210",
-                "Example College",
-                "I need access for my academic project."
-        );
-
-        when(userRepository.existsByUsername("testuser"))
-                .thenReturn(true);
-
-        ResponseStatusException exception = assertThrows(
-                ResponseStatusException.class,
-                () -> authService.register(request)
-        );
-
-        assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
-
-        verify(userRepository, never()).save(any(AppUser.class));
-    }
-
-    @Test
-    void registerShouldRejectDuplicateEmail() {
-
-        RegisterRequest request = new RegisterRequest(
-                "testuser",
-                "test@example.com",
-                "password123",
-                "Test User",
-                "9876543210",
-                "Example College",
-                "I need access for my academic project."
-        );
-
-        when(userRepository.existsByUsername("testuser"))
-                .thenReturn(false);
-
-        when(userRepository.existsByEmail("test@example.com"))
-                .thenReturn(true);
-
-        ResponseStatusException exception = assertThrows(
-                ResponseStatusException.class,
-                () -> authService.register(request)
-        );
-
-        assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
-
-        verify(userRepository, never()).save(any(AppUser.class));
-    }
-
-    @Test
-    void loginShouldSucceedWithUniqueUserId() {
-
-        LoginRequest request = new LoginRequest(
-                "MC-ABCD2345",
-                "password123"
-        );
-
-        when(userRepository.findByUniqueUserId("MC-ABCD2345"))
-                .thenReturn(Optional.of(user));
-
-        when(passwordEncoder.matches(
-                "password123",
-                "encoded-password"
-        )).thenReturn(true);
-
-        when(jwtService.generateToken(
-                1L,
-                "testuser",
-                "test@example.com",
-                "USER"
-        )).thenReturn("test.jwt.token");
-
-        LoginResponse response = authService.login(request);
-
-        assertEquals(1L, response.id());
-        assertEquals("testuser", response.username());
-        assertEquals("test@example.com", response.email());
-        assertEquals("test.jwt.token", response.token());
-
-        verify(userRepository).findByUniqueUserId("MC-ABCD2345");
-        verify(passwordEncoder).matches(
-                "password123",
-                "encoded-password"
-        );
-    }
-
-    @Test
-    void loginShouldNormalizeUniqueUserIdToUppercase() {
-
-        LoginRequest request = new LoginRequest(
-                "mc-abcd2345",
-                "password123"
-        );
-
-        when(userRepository.findByUniqueUserId("MC-ABCD2345"))
-                .thenReturn(Optional.of(user));
-
-        when(passwordEncoder.matches(
-                "password123",
-                "encoded-password"
-        )).thenReturn(true);
-
-        when(jwtService.generateToken(
-                1L,
-                "testuser",
-                "test@example.com",
-                "USER"
-        )).thenReturn("test.jwt.token");
+                assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
 
-        LoginResponse response = authService.login(request);
+                verifyNoInteractions(userRepository, passwordEncoder);
+        }
 
-        assertEquals("test.jwt.token", response.token());
+        @Test
+        void registerShouldRejectDuplicateUsername() {
+
+                RegisterRequest request = new RegisterRequest(
+                                "testuser",
+                                "test@example.com",
+                                "password123",
+                                "Test User",
+                                "9876543210",
+                                "Example College",
+                                "I need access for my academic project.");
 
-        verify(userRepository).findByUniqueUserId("MC-ABCD2345");
-    }
+                when(userRepository.existsByUsername("testuser"))
+                                .thenReturn(true);
 
-    @Test
-    void loginShouldRejectUnknownUser() {
+                ResponseStatusException exception = assertThrows(
+                                ResponseStatusException.class,
+                                () -> authService.register(request));
 
-        LoginRequest request = new LoginRequest(
-                "MC-UNKNOWN1",
-                "password123"
-        );
+                assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
 
-        when(userRepository.findByUniqueUserId("MC-UNKNOWN1"))
-                .thenReturn(Optional.empty());
+                verify(userRepository, never()).save(any(AppUser.class));
+        }
 
-        ResponseStatusException exception = assertThrows(
-                ResponseStatusException.class,
-                () -> authService.login(request)
-        );
+        @Test
+        void registerShouldRejectDuplicateEmail() {
 
-        assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
+                RegisterRequest request = new RegisterRequest(
+                                "testuser",
+                                "test@example.com",
+                                "password123",
+                                "Test User",
+                                "9876543210",
+                                "Example College",
+                                "I need access for my academic project.");
 
-        verify(passwordEncoder, never()).matches(any(), any());
-        verify(jwtService, never()).generateToken(
-                any(), any(), any(), any()
-        );
-    }
+                when(userRepository.existsByUsername("testuser"))
+                                .thenReturn(false);
 
-    @Test
-    void loginShouldRejectIncorrectPassword() {
+                when(userRepository.existsByEmail("test@example.com"))
+                                .thenReturn(true);
 
-        LoginRequest request = new LoginRequest(
-                "MC-ABCD2345",
-                "wrongpassword"
-        );
+                ResponseStatusException exception = assertThrows(
+                                ResponseStatusException.class,
+                                () -> authService.register(request));
 
-        when(userRepository.findByUniqueUserId("MC-ABCD2345"))
-                .thenReturn(Optional.of(user));
+                assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
 
-        when(passwordEncoder.matches(
-                "wrongpassword",
-                "encoded-password"
-        )).thenReturn(false);
+                verify(userRepository, never()).save(any(AppUser.class));
+        }
 
-        ResponseStatusException exception = assertThrows(
-                ResponseStatusException.class,
-                () -> authService.login(request)
-        );
+        @Test
+        void loginShouldSucceedWithUniqueUserId() {
 
-        assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
+                LoginRequest request = new LoginRequest(
+                                "MC-ABCD2345",
+                                "password123");
 
-        verify(jwtService, never()).generateToken(
-                any(), any(), any(), any()
-        );
-    }
+                when(userRepository.findByUniqueUserId("MC-ABCD2345"))
+                                .thenReturn(Optional.of(user));
 
-    @Test
-    void loginShouldRejectBlankIdentifier() {
+                when(passwordEncoder.matches(
+                                "password123",
+                                "encoded-password")).thenReturn(true);
 
-        LoginRequest request = new LoginRequest(
-                " ",
-                "password123"
-        );
+                when(jwtService.generateToken(
+                                1L,
+                                "testuser",
+                                "test@example.com",
+                                "USER")).thenReturn("test.jwt.token");
 
-        ResponseStatusException exception = assertThrows(
-                ResponseStatusException.class,
-                () -> authService.login(request)
-        );
+                LoginResponse response = authService.login(request);
 
-        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+                assertEquals(1L, response.id());
+                assertEquals("testuser", response.username());
+                assertEquals("test@example.com", response.email());
+                assertEquals("test.jwt.token", response.token());
 
-        verifyNoInteractions(userRepository, passwordEncoder, jwtService);
-    }
+                verify(userRepository).findByUniqueUserId("MC-ABCD2345");
+                verify(passwordEncoder).matches(
+                                "password123",
+                                "encoded-password");
+        }
 
-    @Test
-    void loginShouldRejectBlankPassword() {
+        @Test
+        void loginShouldNormalizeUniqueUserIdToUppercase() {
 
-        LoginRequest request = new LoginRequest(
-                "MC-ABCD2345",
-                " "
-        );
+                LoginRequest request = new LoginRequest(
+                                "mc-abcd2345",
+                                "password123");
 
-        ResponseStatusException exception = assertThrows(
-                ResponseStatusException.class,
-                () -> authService.login(request)
-        );
+                when(userRepository.findByUniqueUserId("MC-ABCD2345"))
+                                .thenReturn(Optional.of(user));
 
-        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+                when(passwordEncoder.matches(
+                                "password123",
+                                "encoded-password")).thenReturn(true);
 
-        verifyNoInteractions(userRepository, passwordEncoder, jwtService);
-    }
+                when(jwtService.generateToken(
+                                1L,
+                                "testuser",
+                                "test@example.com",
+                                "USER")).thenReturn("test.jwt.token");
 
-    @Test
-    void loginShouldRejectPendingUser() {
+                LoginResponse response = authService.login(request);
 
-        user.setStatus("PENDING");
+                assertEquals("test.jwt.token", response.token());
 
-        LoginRequest request = new LoginRequest(
-                "MC-ABCD2345",
-                "password123"
-        );
+                verify(userRepository).findByUniqueUserId("MC-ABCD2345");
+        }
 
-        when(userRepository.findByUniqueUserId("MC-ABCD2345"))
-                .thenReturn(Optional.of(user));
+        @Test
+        void loginShouldRejectUnknownUser() {
 
-        ResponseStatusException exception = assertThrows(
-                ResponseStatusException.class,
-                () -> authService.login(request)
-        );
+                LoginRequest request = new LoginRequest(
+                                "MC-UNKNOWN1",
+                                "password123");
 
-        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+                when(userRepository.findByUniqueUserId("MC-UNKNOWN1"))
+                                .thenReturn(Optional.empty());
 
-        verify(passwordEncoder, never()).matches(any(), any());
+                ResponseStatusException exception = assertThrows(
+                                ResponseStatusException.class,
+                                () -> authService.login(request));
 
-        verify(jwtService, never()).generateToken(
-                any(), any(), any(), any()
-        );
-    }
+                assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
 
-    @Test
-    void loginShouldRejectRejectedUser() {
+                verify(passwordEncoder, never()).matches(any(), any());
+                verify(jwtService, never()).generateToken(
+                                any(), any(), any(), any());
+        }
 
-        user.setStatus("REJECTED");
+        @Test
+        void loginShouldRejectIncorrectPassword() {
 
-        LoginRequest request = new LoginRequest(
-                "MC-ABCD2345",
-                "password123"
-        );
+                LoginRequest request = new LoginRequest(
+                                "MC-ABCD2345",
+                                "wrongpassword");
 
-        when(userRepository.findByUniqueUserId("MC-ABCD2345"))
-                .thenReturn(Optional.of(user));
+                when(userRepository.findByUniqueUserId("MC-ABCD2345"))
+                                .thenReturn(Optional.of(user));
 
-        ResponseStatusException exception = assertThrows(
-                ResponseStatusException.class,
-                () -> authService.login(request)
-        );
+                when(passwordEncoder.matches(
+                                "wrongpassword",
+                                "encoded-password")).thenReturn(false);
 
-        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+                ResponseStatusException exception = assertThrows(
+                                ResponseStatusException.class,
+                                () -> authService.login(request));
 
-        verify(passwordEncoder, never()).matches(any(), any());
-    }
+                assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
 
-    @Test
-    void loginShouldRejectSuspendedUser() {
+                verify(jwtService, never()).generateToken(
+                                any(), any(), any(), any());
+        }
 
-        user.setStatus("SUSPENDED");
+        @Test
+        void loginShouldRejectBlankIdentifier() {
 
-        LoginRequest request = new LoginRequest(
-                "MC-ABCD2345",
-                "password123"
-        );
+                LoginRequest request = new LoginRequest(
+                                " ",
+                                "password123");
 
-        when(userRepository.findByUniqueUserId("MC-ABCD2345"))
-                .thenReturn(Optional.of(user));
+                ResponseStatusException exception = assertThrows(
+                                ResponseStatusException.class,
+                                () -> authService.login(request));
 
-        ResponseStatusException exception = assertThrows(
-                ResponseStatusException.class,
-                () -> authService.login(request)
-        );
+                assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
 
-        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+                verifyNoInteractions(userRepository, passwordEncoder, jwtService);
+        }
 
-        verify(passwordEncoder, never()).matches(any(), any());
-    }
+        @Test
+        void loginShouldRejectBlankPassword() {
+
+                LoginRequest request = new LoginRequest(
+                                "MC-ABCD2345",
+                                " ");
+
+                ResponseStatusException exception = assertThrows(
+                                ResponseStatusException.class,
+                                () -> authService.login(request));
+
+                assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+
+                verifyNoInteractions(userRepository, passwordEncoder, jwtService);
+        }
+
+        @Test
+        void loginShouldRejectPendingUser() {
+
+                user.setStatus("PENDING");
+
+                LoginRequest request = new LoginRequest(
+                                "MC-ABCD2345",
+                                "password123");
+
+                when(userRepository.findByUniqueUserId("MC-ABCD2345"))
+                                .thenReturn(Optional.of(user));
+
+                ResponseStatusException exception = assertThrows(
+                                ResponseStatusException.class,
+                                () -> authService.login(request));
+
+                assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+
+                verify(passwordEncoder, never()).matches(any(), any());
+
+                verify(jwtService, never()).generateToken(
+                                any(), any(), any(), any());
+        }
+
+        @Test
+        void loginShouldRejectRejectedUser() {
+
+                user.setStatus("REJECTED");
+
+                LoginRequest request = new LoginRequest(
+                                "MC-ABCD2345",
+                                "password123");
+
+                when(userRepository.findByUniqueUserId("MC-ABCD2345"))
+                                .thenReturn(Optional.of(user));
+
+                ResponseStatusException exception = assertThrows(
+                                ResponseStatusException.class,
+                                () -> authService.login(request));
+
+                assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+
+                verify(passwordEncoder, never()).matches(any(), any());
+        }
+
+        @Test
+        void loginShouldRejectSuspendedUser() {
+
+                user.setStatus("SUSPENDED");
+
+                LoginRequest request = new LoginRequest(
+                                "MC-ABCD2345",
+                                "password123");
+
+                when(userRepository.findByUniqueUserId("MC-ABCD2345"))
+                                .thenReturn(Optional.of(user));
+
+                ResponseStatusException exception = assertThrows(
+                                ResponseStatusException.class,
+                                () -> authService.login(request));
+
+                assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+
+                verify(passwordEncoder, never()).matches(any(), any());
+        }
 }

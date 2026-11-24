@@ -21,16 +21,19 @@ public class AdminSetupService {
 
     private final AppUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditLogService auditLogService;
     private final boolean bootstrapEnabled;
     private final String setupSecret;
 
     public AdminSetupService(
             AppUserRepository userRepository,
             PasswordEncoder passwordEncoder,
+            AuditLogService auditLogService,
             @Value("${app.admin.bootstrap-enabled:false}") boolean bootstrapEnabled,
             @Value("${app.admin.setup-secret:}") String setupSecret) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.auditLogService = auditLogService;
         this.bootstrapEnabled = bootstrapEnabled;
         this.setupSecret = setupSecret;
     }
@@ -103,6 +106,17 @@ public class AdminSetupService {
         admin.assignAdminRole();
 
         AppUser saved = userRepository.saveAndFlush(admin);
+
+        auditLogService.record(
+                saved.getId(),
+                saved.getUsername(),
+                saved.getUniqueUserId(),
+                "USER_REGISTERED",
+                "USER",
+                saved.getId(),
+                saved.getUniqueUserId(),
+                "Initial administrator account " + saved.getUsername() + " was created.",
+                AuditLogService.SUCCESS);
 
         return new RegisterResponse(
                 saved.getId(),

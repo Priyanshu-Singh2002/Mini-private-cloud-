@@ -20,14 +20,17 @@ public class StorageQuotaService {
 
     private final AppUserRepository userRepository;
     private final StoredFileRepository storedFileRepository;
-    private final ConcurrentHashMap<Long, Object> uploadLocks =
-            new ConcurrentHashMap<>();
+    private final AuditLogService auditLogService;
+    private final ConcurrentHashMap<Long, Object> uploadLocks = new ConcurrentHashMap<>();
 
     public StorageQuotaService(
             AppUserRepository userRepository,
-            StoredFileRepository storedFileRepository) {
+            StoredFileRepository storedFileRepository,
+            AuditLogService auditLogService) {
+
         this.userRepository = userRepository;
         this.storedFileRepository = storedFileRepository;
+        this.auditLogService = auditLogService;
     }
 
     public Object lockForUser(Long userId) {
@@ -70,7 +73,8 @@ public class StorageQuotaService {
     @Transactional
     public UserStorageStats updateQuota(
             Long userId,
-            UpdateStorageQuotaRequest request) {
+            UpdateStorageQuotaRequest request,
+            Long adminId) {
 
         if (request == null || request.storageQuotaBytes() == null) {
             throw new ResponseStatusException(
@@ -97,7 +101,27 @@ public class StorageQuotaService {
                         HttpStatus.NOT_FOUND,
                         "User not found."));
 
+        AppUser admin = userRepository.findById(adminId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Authenticated administrator was not found."));
+
+        long oldQuota = resolveQuota(user);
+
         user.setStorageQuotaBytes(quotaBytes);
+
+        auditLogService.record(
+                admin.getId(),
+                admin.getUsername(),
+                admin.getUniqueUserId(),
+                "USER_QUOTA_UPDATED",
+                "USER",
+                user.getId(),
+                user.getUniqueUserId(),
+                "Storage quota for user " + user.getUsername()
+                        + " changed from " + oldQuota
+                        + " bytes to " + quotaBytes + " bytes.");
+
         return toUserStorageStats(user);
     }
 
@@ -136,8 +160,7 @@ public class StorageQuotaService {
     }
 
     private long currentUsageBytes(Long userId) {
-        Long usedBytes =
-                storedFileRepository.calculateStorageBytesByUserId(userId);
+        Long usedBytes = storedFileRepository.calculateStorageBytesByUserId(userId);
         return usedBytes == null ? 0L : usedBytes;
     }
 

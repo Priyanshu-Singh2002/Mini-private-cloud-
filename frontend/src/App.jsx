@@ -7,6 +7,7 @@ import GuestRoute from './components/GuestRoute'
 import ProtectedRoute from './components/ProtectedRoute'
 
 import AdminDashboardPage from './pages/AdminDashboardPage'
+import AdminAuditHistoryPage from './pages/AdminAuditHistoryPage'
 import DashboardPage from './pages/DashboardPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -43,6 +44,7 @@ export default function App() {
 
       <Route element={<AdminRoute />}>
         <Route path="/admin" element={<AdminDashboardPage />} />
+        <Route path="/admin/audit" element={<AdminAuditHistoryPage />} />
       </Route>
 
       <Route path="/" element={<HomeRedirect />} />
